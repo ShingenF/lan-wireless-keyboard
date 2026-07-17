@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="screen_background">#F2F2F2</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_pressed">#FBFDA4</color>
+    <color name="direction_pressed">#E7E7E7</color>
+    <color name="text_primary">#2F2F32</color>
+    <color name="text_secondary">#8E8E93</color>
+    <color name="icon_default">#B4B4B4</color>
+    <color name="connected">#00C853</color>
+    <color name="disconnected">#C74436</color>
+    <color name="connecting">#6C6C6E</color>
+</resources>

@@ -1,0 +1,32 @@
+# Local IDE and build state
+.DS_Store
+.idea/
+.vs/
+.gradle/
+**/bin/
+**/obj/
+**/build/
+artifacts/
+local.properties
+*.iml
+*.user
+
+# Runtime identity and credentials
+runtime-data/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+known_hosts
+.env
+.env.*
+
+# Logs and debug output
+*.log
+*.pdb
+*.trx
+test-results/
+.scratch/
+.tools/

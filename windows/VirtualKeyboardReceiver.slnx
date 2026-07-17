@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VirtualKeyboardReceiver.Core/VirtualKeyboardReceiver.Core.csproj" />
+    <Project Path="src/VirtualKeyboardReceiver/VirtualKeyboardReceiver.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VirtualKeyboardReceiver.Tests/VirtualKeyboardReceiver.Tests.csproj" />
+  </Folder>
+</Solution>

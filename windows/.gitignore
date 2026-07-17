@@ -1,0 +1,9 @@
+.scratch/
+.tools/
+runtime-data/
+test-results/
+artifacts/
+**/bin/
+**/obj/
+.vs/
+*.user

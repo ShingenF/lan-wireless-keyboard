@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">局域网键盘</string>
+    <string name="status_need_settings">● 需要设置电脑</string>
+    <string name="settings">设置</string>
+    <string name="synchronous_mode">同步模式</string>
+    <string name="deferred_mode">异步模式</string>
+    <string name="send">发送</string>
+    <string name="input_method_button">切换电脑输入法</string>
+    <string name="language_toggle_button">切换电脑中英文输入</string>
+    <string name="language_toggle_button_label">中/EN</string>
+    <string name="input_hint">在这里使用手机输入法</string>
+    <string name="direction_up">向上</string>
+    <string name="direction_down">向下</string>
+    <string name="direction_left">向左</string>
+    <string name="direction_right">向右</string>
+    <string name="joystick">中央摇杆</string>
+    <string name="game_joystick">游戏移动摇杆</string>
+    <string name="game_move_up">游戏前进（W）</string>
+    <string name="game_move_down">游戏后退（S）</string>
+    <string name="game_move_left">游戏左移（A）</string>
+    <string name="game_move_right">游戏右移（D）</string>
+    <string name="game_key_w">W</string>
+    <string name="game_key_a">A</string>
+    <string name="game_key_s">S</string>
+    <string name="game_key_d">D</string>
+    <string name="touchpad">触控板</string>
+    <string name="touchpad_gestures">轻点左键 · 连点两次双击\n轻点后按住拖动 · 双指滚动/右键</string>
+    <string name="escape_key">ESC</string>
+    <string name="escape_key_description">Escape 键</string>
+    <string name="right_mouse_button">右键</string>
+    <string name="right_mouse_button_description">鼠标右键</string>
+    <string name="scroll_strip">独立滚轮区</string>
+    <string name="scroll_strip_setting">显示触控区右侧独立滚轮</string>
+    <string name="pointer_speed">指针速度：%1$.1f×</string>
+    <string name="pointer_speed_name">指针速度</string>
+    <string name="pointer_acceleration">触控板加速度：%1$.1f×</string>
+    <string name="pointer_acceleration_name">触控板加速度</string>
+</resources>

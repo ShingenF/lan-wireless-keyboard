@@ -23,6 +23,23 @@ class SettingsStore(context: Context) {
         pointerAcceleration = preferences.getFloat(KEY_ACCELERATION, PointerAcceleration.DEFAULT_GAIN)
             .coerceIn(PointerAcceleration.MIN_GAIN, PointerAcceleration.MAX_GAIN),
         scrollStripEnabled = preferences.getBoolean(KEY_SCROLL_STRIP_ENABLED, true),
+        scrollDetentSpacingDp = preferences.getFloat(
+            KEY_SCROLL_DETENT_SPACING,
+            ScrollWheelTuning.DEFAULT_DETENT_SPACING_DP,
+        ).coerceIn(
+            ScrollWheelTuning.MIN_DETENT_SPACING_DP,
+            ScrollWheelTuning.MAX_DETENT_SPACING_DP,
+        ),
+        scrollInertiaScale = preferences.getFloat(
+            KEY_SCROLL_INERTIA_SCALE,
+            ScrollWheelTuning.DEFAULT_INERTIA_SCALE,
+        ).coerceIn(
+            ScrollWheelTuning.MIN_INERTIA_SCALE,
+            ScrollWheelTuning.MAX_INERTIA_SCALE,
+        ),
+        scrollHapticProfile = ScrollHapticProfile.fromStoredValue(
+            preferences.getString(KEY_SCROLL_HAPTIC_PROFILE, null),
+        ),
         languageToggleShortcut = LanguageToggleShortcut.fromWireNameOrDefault(
             preferences.getString(KEY_LANGUAGE_TOGGLE_SHORTCUT, null),
         ),
@@ -44,6 +61,9 @@ class SettingsStore(context: Context) {
         pointerSensitivity: Float,
         pointerAcceleration: Float,
         scrollStripEnabled: Boolean,
+        scrollDetentSpacingDp: Float,
+        scrollInertiaScale: Float,
+        scrollHapticProfile: ScrollHapticProfile,
         languageToggleShortcut: LanguageToggleShortcut,
         inputMethodShortcut: InputMethodShortcut,
         themeColors: ThemeColors,
@@ -62,6 +82,21 @@ class SettingsStore(context: Context) {
                 pointerAcceleration.coerceIn(PointerAcceleration.MIN_GAIN, PointerAcceleration.MAX_GAIN),
             )
             .putBoolean(KEY_SCROLL_STRIP_ENABLED, scrollStripEnabled)
+            .putFloat(
+                KEY_SCROLL_DETENT_SPACING,
+                scrollDetentSpacingDp.coerceIn(
+                    ScrollWheelTuning.MIN_DETENT_SPACING_DP,
+                    ScrollWheelTuning.MAX_DETENT_SPACING_DP,
+                ),
+            )
+            .putFloat(
+                KEY_SCROLL_INERTIA_SCALE,
+                scrollInertiaScale.coerceIn(
+                    ScrollWheelTuning.MIN_INERTIA_SCALE,
+                    ScrollWheelTuning.MAX_INERTIA_SCALE,
+                ),
+            )
+            .putString(KEY_SCROLL_HAPTIC_PROFILE, scrollHapticProfile.storedValue)
             .putString(KEY_LANGUAGE_TOGGLE_SHORTCUT, languageToggleShortcut.command.wireName)
             .putString(KEY_INPUT_METHOD_SHORTCUT, inputMethodShortcut.command.wireName)
             .putString(KEY_BACKGROUND_COLOR, themeColors.background.canonical)
@@ -154,6 +189,9 @@ class SettingsStore(context: Context) {
         const val KEY_SENSITIVITY = "pointer_sensitivity"
         const val KEY_ACCELERATION = "pointer_acceleration"
         const val KEY_SCROLL_STRIP_ENABLED = "scroll_strip_enabled"
+        const val KEY_SCROLL_DETENT_SPACING = "scroll_detent_spacing_dp"
+        const val KEY_SCROLL_INERTIA_SCALE = "scroll_inertia_scale"
+        const val KEY_SCROLL_HAPTIC_PROFILE = "scroll_haptic_profile"
         const val KEY_LANGUAGE_TOGGLE_SHORTCUT = "language_toggle_shortcut"
         const val KEY_INPUT_METHOD_SHORTCUT = "input_method_shortcut"
         const val KEY_BACKGROUND_COLOR = "background_color"

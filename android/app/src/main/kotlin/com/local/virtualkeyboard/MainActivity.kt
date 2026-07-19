@@ -20,7 +20,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.CheckBox
 import android.widget.ImageButton
@@ -42,6 +41,8 @@ import com.local.virtualkeyboard.settings.HexColor
 import com.local.virtualkeyboard.settings.InputMethodShortcut
 import com.local.virtualkeyboard.settings.LanguageToggleShortcut
 import com.local.virtualkeyboard.settings.PointerAcceleration
+import com.local.virtualkeyboard.settings.ScrollHapticProfile
+import com.local.virtualkeyboard.settings.ScrollWheelTuning
 import com.local.virtualkeyboard.settings.SettingsStore
 import com.local.virtualkeyboard.settings.ThemeColors
 import com.local.virtualkeyboard.ui.JoystickDirection
@@ -104,21 +105,21 @@ class MainActivity : Activity(), NetworkClient.Listener {
             installPressHaptic(this)
             setOnClickListener {
                 inputView.submitDeferredDraft()
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
         }
         inputMethodButton.apply {
             installPressHaptic(this)
             setOnClickListener {
                 sendCommand(OutgoingCommand.SystemShortcutPress(inputMethodShortcut.command))
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
         }
         languageToggleButton.apply {
             installPressHaptic(this)
             setOnClickListener {
                 sendCommand(OutgoingCommand.SystemShortcutPress(languageToggleShortcut.command))
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
         }
         inputView.restoreDeferredDraft(savedInstanceState?.getString(STATE_DEFERRED_DRAFT).orEmpty())
@@ -158,7 +159,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
             installPressHaptic(this)
             setOnClickListener {
                 sendCommand(OutgoingCommand.KeyPress(RemoteKey.ESCAPE))
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
         }
         findViewById<TextView>(R.id.rightClickButton).apply {
@@ -184,7 +185,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
             override fun onLeftButtonUp() {
                 emitPointerButton(MouseButton.LEFT, ButtonAction.UP)
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
 
             override fun onWheel(delta: Int) {
@@ -214,13 +215,14 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 inputView.post { showSettingsDialog() }
             }
         }
-        keepInputFocused()
+        focusInputWithoutShowingIme()
     }
 
     override fun onStop() {
         activityVisible = false
         repeatCancellations.forEach { it() }
         gameMovementController.releaseAll()
+        scrollStripView.cancelMotion()
         networkClient?.close()
         networkClient = null
         super.onStop()
@@ -265,7 +267,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         }
         repeatCancellations += cancel
         button.setOnTouchListener { view, event ->
-            keepInputFocused()
+            focusInputWithoutShowingIme()
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     view.isPressed = true
@@ -306,7 +308,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         }
         repeatCancellations += cancel
         button.setOnTouchListener { view, event ->
-            keepInputFocused()
+            focusInputWithoutShowingIme()
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     view.isPressed = true
@@ -367,7 +369,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
     private fun emitPointerClick(button: MouseButton) {
         emitPointerButton(button, ButtonAction.DOWN)
         emitPointerButton(button, ButtonAction.UP)
-        keepInputFocused()
+        focusInputWithoutShowingIme()
     }
 
     private fun emitPointerButton(button: MouseButton, action: ButtonAction) {
@@ -376,14 +378,14 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
     private fun selectInputMode(deferred: Boolean) {
         if (!inputView.setDeferredMode(deferred)) {
-            keepInputFocused()
+            focusInputWithoutShowingIme()
             return
         }
         deferredModeEnabled = deferred
         sendButton.visibility = if (deferred) View.VISIBLE else View.GONE
         syncShortcutContainer.visibility = if (deferred) View.GONE else View.VISIBLE
         styleInputModeSelector()
-        keepInputFocused()
+        focusInputWithoutShowingIme()
     }
 
     private fun styleInputModeSelector() {
@@ -409,12 +411,13 @@ class MainActivity : Activity(), NetworkClient.Listener {
         }
     }
 
-    private fun keepInputFocused() {
-        if (!inputView.hasFocus()) inputView.requestFocus()
+    private fun focusInputWithoutShowingIme() {
+        if (inputView.hasFocus()) return
+        val previousShowSoftInputOnFocus = inputView.showSoftInputOnFocus
+        inputView.showSoftInputOnFocus = false
+        inputView.requestFocus()
         inputView.post {
-            if (!activityVisible) return@post
-            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
-                .showSoftInput(inputView, InputMethodManager.SHOW_IMPLICIT)
+            inputView.showSoftInputOnFocus = previousShowSoftInputOnFocus
         }
     }
 
@@ -529,6 +532,108 @@ class MainActivity : Activity(), NetworkClient.Listener {
             buttonTintList = ColorStateList.valueOf(themeColors.iconArgb)
             setPadding(0, dp(10), 0, 0)
         }
+        val scrollDetentLabel = TextView(this).apply {
+            text = getString(R.string.scroll_detent_spacing, current.scrollDetentSpacingDp)
+            setTextColor(themeColors.primaryTextArgb)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(10), 0, 0)
+        }
+        val scrollDetentBar = SeekBar(this).apply {
+            id = View.generateViewId()
+            max = (ScrollWheelTuning.MAX_DETENT_SPACING_DP - ScrollWheelTuning.MIN_DETENT_SPACING_DP)
+                .toInt()
+            progress = (current.scrollDetentSpacingDp - ScrollWheelTuning.MIN_DETENT_SPACING_DP)
+                .toInt()
+                .coerceIn(0, max)
+            progressDrawable = getDrawable(R.drawable.seekbar_track)
+            thumb = getDrawable(R.drawable.seekbar_thumb)
+            splitTrack = false
+            updateSeekBarAccessibility(
+                this,
+                getString(R.string.scroll_detent_spacing_name),
+                getString(R.string.scroll_detent_spacing, current.scrollDetentSpacingDp),
+            )
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val spacing = ScrollWheelTuning.MIN_DETENT_SPACING_DP + progress
+                    val label = getString(R.string.scroll_detent_spacing, spacing)
+                    scrollDetentLabel.text = label
+                    seekBar?.let {
+                        updateSeekBarAccessibility(
+                            it,
+                            getString(R.string.scroll_detent_spacing_name),
+                            label,
+                        )
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        scrollDetentLabel.labelFor = scrollDetentBar.id
+        val scrollInertiaLabel = TextView(this).apply {
+            text = getString(R.string.scroll_inertia, (current.scrollInertiaScale * 100).toInt())
+            setTextColor(themeColors.primaryTextArgb)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(10), 0, 0)
+        }
+        val scrollInertiaBar = SeekBar(this).apply {
+            id = View.generateViewId()
+            max = (ScrollWheelTuning.MAX_INERTIA_SCALE * 10).toInt()
+            progress = (current.scrollInertiaScale * 10).toInt().coerceIn(0, max)
+            progressDrawable = getDrawable(R.drawable.seekbar_track)
+            thumb = getDrawable(R.drawable.seekbar_thumb)
+            splitTrack = false
+            updateSeekBarAccessibility(
+                this,
+                getString(R.string.scroll_inertia_name),
+                getString(R.string.scroll_inertia, progress * 10),
+            )
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val label = getString(R.string.scroll_inertia, progress * 10)
+                    scrollInertiaLabel.text = label
+                    seekBar?.let {
+                        updateSeekBarAccessibility(it, getString(R.string.scroll_inertia_name), label)
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        scrollInertiaLabel.labelFor = scrollInertiaBar.id
+        val scrollHapticLabel = TextView(this).apply {
+            text = getString(R.string.scroll_haptic, scrollHapticProfileLabel(current.scrollHapticProfile))
+            setTextColor(themeColors.primaryTextArgb)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(10), 0, 0)
+        }
+        val scrollHapticBar = SeekBar(this).apply {
+            id = View.generateViewId()
+            max = ScrollHapticProfile.entries.lastIndex
+            progress = current.scrollHapticProfile.ordinal
+            progressDrawable = getDrawable(R.drawable.seekbar_track)
+            thumb = getDrawable(R.drawable.seekbar_thumb)
+            splitTrack = false
+            updateSeekBarAccessibility(
+                this,
+                getString(R.string.scroll_haptic_name),
+                getString(R.string.scroll_haptic, scrollHapticProfileLabel(current.scrollHapticProfile)),
+            )
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val profile = ScrollHapticProfile.entries[progress]
+                    val label = getString(R.string.scroll_haptic, scrollHapticProfileLabel(profile))
+                    scrollHapticLabel.text = label
+                    seekBar?.let {
+                        updateSeekBarAccessibility(it, getString(R.string.scroll_haptic_name), label)
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        scrollHapticLabel.labelFor = scrollHapticBar.id
         val languageShortcutSelector = createShortcutSelector(
             title = "中 / EN 切换快捷键",
             choices = LANGUAGE_SHORTCUT_CHOICES,
@@ -581,6 +686,12 @@ class MainActivity : Activity(), NetworkClient.Listener {
         content.addView(accelerationLabel)
         content.addView(accelerationBar)
         content.addView(scrollStripToggle)
+        content.addView(scrollDetentLabel)
+        content.addView(scrollDetentBar)
+        content.addView(scrollInertiaLabel)
+        content.addView(scrollInertiaBar)
+        content.addView(scrollHapticLabel)
+        content.addView(scrollHapticBar)
         content.addView(settingsLabel("中 / EN 切换", themeColors))
         content.addView(languageShortcutSelector.view)
         content.addView(settingsLabel("输入法切换（地球键）", themeColors))
@@ -634,6 +745,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
                 val sensitivity = 0.5f + sensitivityBar.progress / 100f
                 val acceleration = PointerAcceleration.MIN_GAIN + accelerationBar.progress / 100f
+                val scrollDetentSpacing =
+                    ScrollWheelTuning.MIN_DETENT_SPACING_DP + scrollDetentBar.progress
+                val scrollInertiaScale = scrollInertiaBar.progress / 10f
+                val scrollHapticProfile = ScrollHapticProfile.entries[scrollHapticBar.progress]
                 settingsStore.saveConnection(
                     host = host,
                     port = port!!,
@@ -641,6 +756,9 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     pointerSensitivity = sensitivity,
                     pointerAcceleration = acceleration,
                     scrollStripEnabled = scrollStripToggle.isChecked,
+                    scrollDetentSpacingDp = scrollDetentSpacing,
+                    scrollInertiaScale = scrollInertiaScale,
+                    scrollHapticProfile = scrollHapticProfile,
                     languageToggleShortcut = languageShortcutSelector.selected,
                     inputMethodShortcut = inputMethodShortcutSelector.selected,
                     themeColors = ThemeColors(
@@ -654,10 +772,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 applySettingsToUi(updated)
                 if (activityVisible) startConnection(updated)
                 dialog.dismiss()
-                keepInputFocused()
+                focusInputWithoutShowingIme()
             }
         }
-        dialog.setOnDismissListener { keepInputFocused() }
+        dialog.setOnDismissListener { focusInputWithoutShowingIme() }
         dialog.show()
     }
 
@@ -810,6 +928,15 @@ class MainActivity : Activity(), NetworkClient.Listener {
         }
     }
 
+    private fun scrollHapticProfileLabel(profile: ScrollHapticProfile): String = getString(
+        when (profile) {
+            ScrollHapticProfile.OFF -> R.string.scroll_haptic_off
+            ScrollHapticProfile.LIGHT -> R.string.scroll_haptic_light
+            ScrollHapticProfile.STANDARD -> R.string.scroll_haptic_standard
+            ScrollHapticProfile.STRONG -> R.string.scroll_haptic_strong
+        },
+    )
+
     private fun validateHexField(field: EditText): HexColor? =
         HexColor.parse(field.text.toString()).also { normalized ->
             if (normalized == null) field.error = "请输入 6 位 HEX，例如 #F2F2F2"
@@ -889,6 +1016,11 @@ class MainActivity : Activity(), NetworkClient.Listener {
     private fun applySettingsToUi(settings: ConnectionSettings) {
         touchpadView.sensitivity = settings.pointerSensitivity
         touchpadView.maximumAccelerationGain = settings.pointerAcceleration
+        scrollStripView.configure(
+            detentSpacingDp = settings.scrollDetentSpacingDp,
+            inertiaScale = settings.scrollInertiaScale,
+            hapticProfile = settings.scrollHapticProfile,
+        )
         scrollStripView.visibility = if (settings.scrollStripEnabled) View.VISIBLE else View.GONE
         val themeColors = settings.themeColors
         currentThemeColors = themeColors

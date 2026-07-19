@@ -36,4 +36,14 @@
     <string name="pointer_speed_name">指针速度</string>
     <string name="pointer_acceleration">触控板加速度：%1$.1f×</string>
     <string name="pointer_acceleration_name">触控板加速度</string>
+    <string name="scroll_detent_spacing">滚轮刻度：%1$.0f dp</string>
+    <string name="scroll_detent_spacing_name">滚轮刻度</string>
+    <string name="scroll_inertia">滚轮惯性：%1$d%%</string>
+    <string name="scroll_inertia_name">滚轮惯性</string>
+    <string name="scroll_haptic">滚轮震感：%1$s</string>
+    <string name="scroll_haptic_name">滚轮震感</string>
+    <string name="scroll_haptic_off">关闭</string>
+    <string name="scroll_haptic_light">轻</string>
+    <string name="scroll_haptic_standard">标准</string>
+    <string name="scroll_haptic_strong">明显</string>
 </resources>

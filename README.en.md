@@ -15,19 +15,19 @@ Turn an Android phone into a LAN keyboard, touchpad, and game-movement controlle
 - Includes arrow keys, a W/A/S/D game joystick, Esc, a dedicated right-click button, and an optional scroll strip.
 - The touchpad supports movement, tap-to-left-click, left-button double-click, tap-then-hold dragging, two-finger scrolling, and two-finger right-click.
 - Globe and `中/EN` buttons switch the PC input method using configurable Windows/macOS shortcut presets.
-- Pointer speed and touchpad acceleration are independently adjustable. `1.0×` preserves precise native motion, while faster swipes progressively approach the selected gain.
+- Pointer speed, touchpad acceleration, wheel detent spacing, inertia, and haptics are independently adjustable. `1.0×` preserves precise native motion, while faster swipes progressively approach the selected gain.
 - Android disconnects immediately when it leaves the foreground. Closing the Windows window keeps it in the notification area; choosing Exit stops it completely.
 - Background, icon, primary-text, and secondary-text colors accept HEX values.
 - The Android interface plus the Windows EXE, window, and notification area use MIT-licensed Hugeicons Stroke Rounded icons.
 
 ## Download
 
-Download both files for the same version from GitHub **Releases**:
+Download Android `v1.2.0` and the compatible Windows receiver `v1.1.0` from GitHub **Releases**:
 
-- `LAN-Wireless-Keyboard-Android-v1.1.0.apk`
+- `LAN-Wireless-Keyboard-Android-v1.2.0.apk`
 - `LAN-Wireless-Keyboard-Windows-x64-v1.1.0.zip`
 
-Use `SHA256SUMS.txt` from the same release to verify the downloads. The Windows receiver currently supports x64 Windows only.
+Use `SHA256SUMS.txt` from the same release to verify the downloads. The receiver protocol is unchanged, so this release retains Windows `v1.1.0`; it supports x64 Windows only.
 
 ## 1. Install the Windows .NET runtime
 

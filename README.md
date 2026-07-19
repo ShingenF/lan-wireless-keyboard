@@ -15,19 +15,19 @@
 - 提供方向键、W/A/S/D 游戏摇杆、Esc、独立右键和可选滚轮区。
 - 触控板支持移动、轻点左键、双击左键、轻点后按住拖动、双指滚动与双指右键。
 - 地球键和“中/EN”键可切换电脑输入法；设置中提供常见 Windows/macOS 快捷键预设。
-- 可分别调节指针速度和触控板加速度；`1.0×` 保持精确原速，快速滑动可渐进提升至设定倍率。
+- 可分别调节指针速度、触控板加速度、滚轮刻度、惯性和震感；`1.0×` 保持精确原速，快速滑动可渐进提升至设定倍率。
 - Android 离开前台立即断开；Windows 关闭窗口后留在通知区域，选择“退出”才完全结束。
 - 可用 HEX 修改背景、图标、主要文字和次要文字颜色。
 - Android 界面以及 Windows 的 EXE、窗口和通知区域使用 MIT 许可的 Hugeicons Stroke Rounded 图标。
 
 ## 下载
 
-在 GitHub 的 **Releases** 页面下载同一版本的两个文件：
+在 GitHub 的 **Releases** 页面下载 Android `v1.2.0` 与兼容的 Windows 接收端 `v1.1.0`：
 
-- `LAN-Wireless-Keyboard-Android-v1.1.0.apk`
+- `LAN-Wireless-Keyboard-Android-v1.2.0.apk`
 - `LAN-Wireless-Keyboard-Windows-x64-v1.1.0.zip`
 
-可用同一 Release 中的 `SHA256SUMS.txt` 校验下载文件。Windows 接收端仅支持 64 位 x64 Windows。
+可用同一 Release 中的 `SHA256SUMS.txt` 校验下载文件。Windows 接收端协议未变，本次沿用 `v1.1.0`；它仅支持 64 位 x64 Windows。
 
 ## 1. 安装 Windows 的 .NET 环境
 

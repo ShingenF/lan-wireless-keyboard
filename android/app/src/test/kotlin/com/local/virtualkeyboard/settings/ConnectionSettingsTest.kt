@@ -9,6 +9,9 @@ class ConnectionSettingsTest {
         assertEquals("", ConnectionSettings().host)
         assertEquals(39421, ConnectionSettings().port)
         assertEquals(true, ConnectionSettings().scrollStripEnabled)
+        assertEquals(8f, ConnectionSettings().scrollDetentSpacingDp)
+        assertEquals(1f, ConnectionSettings().scrollInertiaScale)
+        assertEquals(ScrollHapticProfile.STANDARD, ConnectionSettings().scrollHapticProfile)
         assertEquals(LanguageToggleShortcut.SHIFT, ConnectionSettings().languageToggleShortcut)
         assertEquals(InputMethodShortcut.WINDOWS_SPACE, ConnectionSettings().inputMethodShortcut)
     }
@@ -35,5 +38,11 @@ class ConnectionSettingsTest {
             InputMethodShortcut.WINDOWS_SPACE,
             InputMethodShortcut.fromWireNameOrDefault("shift"),
         )
+    }
+
+    @Test
+    fun `unknown scroll haptic profile falls back to the standard feel`() {
+        assertEquals(ScrollHapticProfile.STANDARD, ScrollHapticProfile.fromStoredValue("future-profile"))
+        assertEquals(ScrollHapticProfile.LIGHT, ScrollHapticProfile.fromStoredValue("light"))
     }
 }

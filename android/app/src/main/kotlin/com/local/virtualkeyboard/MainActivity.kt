@@ -3,7 +3,10 @@ package com.local.virtualkeyboard
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -27,6 +30,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import com.local.virtualkeyboard.input.GameControlSource
 import com.local.virtualkeyboard.input.GameMovementController
 import com.local.virtualkeyboard.input.RemoteInputEditText
@@ -37,7 +41,6 @@ import com.local.virtualkeyboard.protocol.MouseButton
 import com.local.virtualkeyboard.protocol.OutgoingCommand
 import com.local.virtualkeyboard.protocol.RemoteKey
 import com.local.virtualkeyboard.settings.ConnectionSettings
-import com.local.virtualkeyboard.settings.HexColor
 import com.local.virtualkeyboard.settings.InputMethodShortcut
 import com.local.virtualkeyboard.settings.LanguageToggleShortcut
 import com.local.virtualkeyboard.settings.PointerAcceleration
@@ -45,6 +48,9 @@ import com.local.virtualkeyboard.settings.ScrollHapticProfile
 import com.local.virtualkeyboard.settings.ScrollWheelTuning
 import com.local.virtualkeyboard.settings.SettingsStore
 import com.local.virtualkeyboard.settings.ThemeColors
+import com.local.virtualkeyboard.settings.ThemeFramework
+import com.local.virtualkeyboard.settings.ThemeMode
+import com.local.virtualkeyboard.settings.ThemeSettings
 import com.local.virtualkeyboard.ui.JoystickDirection
 import com.local.virtualkeyboard.ui.JoystickView
 import com.local.virtualkeyboard.ui.ScrollStripView
@@ -443,7 +449,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
     private fun showSettingsDialog() {
         val current = settingsStore.load()
-        val themeColors = current.themeColors
+        val themeColors = current.themeSettings.resolve(isSystemDarkTheme())
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(4), dp(22), 0)
@@ -529,7 +535,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
             text = getString(R.string.scroll_strip_setting)
             isChecked = current.scrollStripEnabled
             setTextColor(themeColors.primaryTextArgb)
-            buttonTintList = ColorStateList.valueOf(themeColors.iconArgb)
+            buttonTintList = toggleTintList(themeColors)
             setPadding(0, dp(10), 0, 0)
         }
         val scrollDetentLabel = TextView(this).apply {
@@ -646,38 +652,62 @@ class MainActivity : Activity(), NetworkClient.Listener {
             selected = current.inputMethodShortcut,
             themeColors = themeColors,
         )
-        val hexInputType =
-            InputType.TYPE_CLASS_TEXT or
-                InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
-                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        val backgroundColorField = settingsField(
-            "背景色 HEX",
-            themeColors.background.canonical,
-            hexInputType,
+        val followSystemToggle = CheckBox(this).apply {
+            setText(R.string.theme_follow_system)
+            isChecked = current.themeSettings.mode == ThemeMode.FOLLOW_SYSTEM
+            setTextColor(themeColors.primaryTextArgb)
+            buttonTintList = toggleTintList(themeColors)
+            setPadding(0, dp(10), 0, 0)
+        }
+        val forceDarkToggle = CheckBox(this).apply {
+            setText(R.string.theme_force_dark)
+            isChecked = current.themeSettings.mode == ThemeMode.DARK
+            setTextColor(themeColors.primaryTextArgb)
+            buttonTintList = toggleTintList(themeColors)
+            setPadding(0, 0, 0, dp(4))
+        }
+        fun updateForcedThemeToggle() {
+            forceDarkToggle.isEnabled = !followSystemToggle.isChecked
+            forceDarkToggle.alpha = if (forceDarkToggle.isEnabled) 1f else 0.45f
+        }
+        followSystemToggle.setOnCheckedChangeListener { _, _ -> updateForcedThemeToggle() }
+        updateForcedThemeToggle()
+
+        val themeAiPrompt = getString(R.string.theme_ai_prompt)
+        val themePromptView = TextView(this).apply {
+            text = themeAiPrompt
+            setTextColor(themeColors.secondaryTextArgb)
+            textSize = 13f
+            setTextIsSelectable(true)
+            setPadding(dp(4), dp(8), dp(4), dp(4))
+        }
+        val themeFrameworkEditor = themeFrameworkEditor(
+            ThemeFramework.format(current.themeSettings.palettes),
             themeColors,
-            selectAllOnFocus = true,
         )
-        val iconColorField = settingsField(
-            "图标色 HEX",
-            themeColors.icon.canonical,
-            hexInputType,
+        val copyThemePromptButton = shortcutSelectorField(
+            getString(R.string.theme_copy_prompt_and_framework),
             themeColors,
-            selectAllOnFocus = true,
-        )
-        val primaryTextColorField = settingsField(
-            "主要文字色 HEX",
-            themeColors.primaryText.canonical,
-            hexInputType,
-            themeColors,
-            selectAllOnFocus = true,
-        )
-        val secondaryTextColorField = settingsField(
-            "次要文字色 HEX",
-            themeColors.secondaryText.canonical,
-            hexInputType,
-            themeColors,
-            selectAllOnFocus = true,
-        )
+        ).apply {
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setOnClickListener {
+                val clipboard = getSystemService(ClipboardManager::class.java)
+                clipboard.setPrimaryClip(
+                    ClipData.newPlainText(
+                        getString(R.string.theme_clipboard_label),
+                        "$themeAiPrompt\n\n${themeFrameworkEditor.text}",
+                    ),
+                )
+                Toast.makeText(
+                    this@MainActivity,
+                    R.string.theme_copy_confirmation,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        listOf(sensitivityBar, accelerationBar, scrollDetentBar, scrollInertiaBar, scrollHapticBar)
+            .forEach { styleSettingsSeekBar(it, themeColors) }
         content.addView(hostField)
         content.addView(portField)
         content.addView(codeField)
@@ -696,14 +726,14 @@ class MainActivity : Activity(), NetworkClient.Listener {
         content.addView(languageShortcutSelector.view)
         content.addView(settingsLabel("输入法切换（地球键）", themeColors))
         content.addView(inputMethodShortcutSelector.view)
-        content.addView(settingsLabel("背景色", themeColors))
-        content.addView(backgroundColorField)
-        content.addView(settingsLabel("图标色", themeColors))
-        content.addView(iconColorField)
-        content.addView(settingsLabel("主要文字色", themeColors))
-        content.addView(primaryTextColorField)
-        content.addView(settingsLabel("次要文字色", themeColors))
-        content.addView(secondaryTextColorField)
+        content.addView(settingsLabel(getString(R.string.theme_mode_section), themeColors))
+        content.addView(followSystemToggle)
+        content.addView(forceDarkToggle)
+        content.addView(settingsLabel(getString(R.string.theme_prompt_section), themeColors))
+        content.addView(themePromptView)
+        content.addView(copyThemePromptButton)
+        content.addView(settingsLabel(getString(R.string.theme_framework_section), themeColors))
+        content.addView(themeFrameworkEditor)
         val scrollContent = ScrollView(this).apply {
             isFillViewport = true
             addView(content)
@@ -721,10 +751,12 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 val host = hostField.text.toString().trim()
                 val port = portField.text.toString().toIntOrNull()
                 val pairingCode = AuthenticationProof.normalizePairingCode(codeField.text.toString())
-                val backgroundHex = validateHexField(backgroundColorField)
-                val iconHex = validateHexField(iconColorField)
-                val primaryTextHex = validateHexField(primaryTextColorField)
-                val secondaryTextHex = validateHexField(secondaryTextColorField)
+                val themePalettes = try {
+                    ThemeFramework.parse(themeFrameworkEditor.text.toString())
+                } catch (error: IllegalArgumentException) {
+                    themeFrameworkEditor.error = error.message ?: "颜色配置格式不正确"
+                    null
+                }
                 var valid = true
                 if (host.isEmpty()) {
                     hostField.error = "请输入电脑 IP 地址"
@@ -738,9 +770,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     codeField.error = "请输入电脑端显示的 16 位配对码"
                     valid = false
                 }
-                if (listOf(backgroundHex, iconHex, primaryTextHex, secondaryTextHex).any { it == null }) {
-                    valid = false
-                }
+                if (themePalettes == null) valid = false
                 if (!valid) return@setOnClickListener
 
                 val sensitivity = 0.5f + sensitivityBar.progress / 100f
@@ -761,11 +791,13 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     scrollHapticProfile = scrollHapticProfile,
                     languageToggleShortcut = languageShortcutSelector.selected,
                     inputMethodShortcut = inputMethodShortcutSelector.selected,
-                    themeColors = ThemeColors(
-                        background = backgroundHex!!,
-                        icon = iconHex!!,
-                        primaryText = primaryTextHex!!,
-                        secondaryText = secondaryTextHex!!,
+                    themeSettings = ThemeSettings(
+                        mode = when {
+                            followSystemToggle.isChecked -> ThemeMode.FOLLOW_SYSTEM
+                            forceDarkToggle.isChecked -> ThemeMode.DARK
+                            else -> ThemeMode.LIGHT
+                        },
+                        palettes = themePalettes!!,
                     ),
                 )
                 val updated = settingsStore.load()
@@ -784,16 +816,15 @@ class MainActivity : Activity(), NetworkClient.Listener {
         value: String,
         inputType: Int,
         themeColors: ThemeColors,
-        selectAllOnFocus: Boolean = false,
     ): EditText =
         EditText(this).apply {
             hint = label
             setText(value)
             this.inputType = inputType
             background = getDrawable(R.drawable.input_background)
+            backgroundTintList = ColorStateList.valueOf(themeColors.inputBackgroundArgb)
             setTextColor(themeColors.primaryTextArgb)
             setHintTextColor(themeColors.secondaryTextArgb)
-            setSelectAllOnFocus(selectAllOnFocus)
             isSingleLine = true
             setPadding(dp(14), dp(10), dp(14), dp(10))
             layoutParams = LinearLayout.LayoutParams(
@@ -801,6 +832,33 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply {
                 topMargin = dp(10)
+            }
+        }
+
+    private fun themeFrameworkEditor(value: String, themeColors: ThemeColors): EditText =
+        EditText(this).apply {
+            hint = getString(R.string.theme_framework_hint)
+            setText(value)
+            inputType =
+                InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            typeface = Typeface.MONOSPACE
+            textSize = 13f
+            gravity = Gravity.TOP or Gravity.START
+            background = getDrawable(R.drawable.input_background)
+            backgroundTintList = ColorStateList.valueOf(themeColors.inputBackgroundArgb)
+            setTextColor(themeColors.primaryTextArgb)
+            setHintTextColor(themeColors.secondaryTextArgb)
+            setHorizontallyScrolling(false)
+            minLines = 14
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(18)
             }
         }
 
@@ -819,6 +877,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
             textSize = 15f
             gravity = Gravity.CENTER_VERTICAL
             background = getDrawable(R.drawable.input_background)
+            backgroundTintList = ColorStateList.valueOf(themeColors.inputBackgroundArgb)
             isClickable = true
             isFocusable = false
             minHeight = dp(44)
@@ -937,10 +996,19 @@ class MainActivity : Activity(), NetworkClient.Listener {
         },
     )
 
-    private fun validateHexField(field: EditText): HexColor? =
-        HexColor.parse(field.text.toString()).also { normalized ->
-            if (normalized == null) field.error = "请输入 6 位 HEX，例如 #F2F2F2"
-        }
+    private fun styleSettingsSeekBar(seekBar: SeekBar, themeColors: ThemeColors) {
+        seekBar.progressTintList = ColorStateList.valueOf(themeColors.primaryTextArgb)
+        seekBar.progressBackgroundTintList = ColorStateList.valueOf(themeColors.inputBackgroundArgb)
+        seekBar.thumbTintList = ColorStateList.valueOf(themeColors.primaryTextArgb)
+    }
+
+    private fun toggleTintList(themeColors: ThemeColors): ColorStateList = ColorStateList(
+        arrayOf(
+            intArrayOf(android.R.attr.state_checked),
+            intArrayOf(),
+        ),
+        intArrayOf(themeColors.primaryTextArgb, themeColors.iconArgb),
+    )
 
     private fun styleSettingsDialog(dialog: AlertDialog, themeColors: ThemeColors) {
         dialog.window?.apply {
@@ -991,16 +1059,19 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 ),
             )
         }
-        styleDialogAction(negativeButton, themeColors.secondaryTextArgb, bold = false)
-        styleDialogAction(positiveButton, themeColors.primaryTextArgb, bold = true)
+        styleDialogAction(negativeButton, themeColors, bold = false)
+        styleDialogAction(positiveButton, themeColors, bold = true)
     }
 
-    private fun styleDialogAction(button: TextView, textColor: Int, bold: Boolean) {
+    private fun styleDialogAction(button: TextView, themeColors: ThemeColors, bold: Boolean) {
         button.apply {
-            setTextColor(textColor)
+            setTextColor(
+                if (bold) themeColors.primaryTextArgb else themeColors.secondaryTextArgb,
+            )
             textSize = 15f
             gravity = Gravity.CENTER
             background = getDrawable(R.drawable.control_button_background)
+            backgroundTintList = surfaceTintList(themeColors.inputBackgroundArgb, themeColors.primaryTextArgb)
             elevation = 0f
             stateListAnimator = null
             minimumWidth = 0
@@ -1022,11 +1093,14 @@ class MainActivity : Activity(), NetworkClient.Listener {
             hapticProfile = settings.scrollHapticProfile,
         )
         scrollStripView.visibility = if (settings.scrollStripEnabled) View.VISIBLE else View.GONE
-        val themeColors = settings.themeColors
+        val themeColors = settings.themeSettings.resolve(isSystemDarkTheme())
         currentThemeColors = themeColors
         languageToggleShortcut = settings.languageToggleShortcut
         inputMethodShortcut = settings.inputMethodShortcut
         findViewById<View>(R.id.mainRoot).setBackgroundColor(themeColors.backgroundArgb)
+        findViewById<View>(R.id.inputContainer).backgroundTintList =
+            ColorStateList.valueOf(themeColors.inputBackgroundArgb)
+        touchpadView.backgroundTintList = ColorStateList.valueOf(themeColors.touchpadBackgroundArgb)
         statusView.setTextColor(themeColors.primaryTextArgb)
         inputView.setTextColor(themeColors.primaryTextArgb)
         inputView.setHintTextColor(themeColors.secondaryTextArgb)
@@ -1034,6 +1108,12 @@ class MainActivity : Activity(), NetworkClient.Listener {
         findViewById<TextView>(R.id.touchpadHint).setTextColor(themeColors.secondaryTextArgb)
         findViewById<TextView>(R.id.escapeButton).setTextColor(themeColors.iconArgb)
         findViewById<TextView>(R.id.rightClickButton).setTextColor(themeColors.iconArgb)
+        val controlSurfaceTint = surfaceTintList(
+            themeColors.inputBackgroundArgb,
+            themeColors.primaryTextArgb,
+        )
+        findViewById<TextView>(R.id.escapeButton).backgroundTintList = controlSurfaceTint
+        findViewById<TextView>(R.id.rightClickButton).backgroundTintList = controlSurfaceTint
         scrollStripView.setIndicatorColor(themeColors.iconArgb)
 
         val iconTint = ColorStateList.valueOf(themeColors.iconArgb)
@@ -1060,6 +1140,28 @@ class MainActivity : Activity(), NetworkClient.Listener {
         window.statusBarColor = themeColors.backgroundArgb
         window.navigationBarColor = themeColors.backgroundArgb
         applySystemBarIconContrast(themeColors.backgroundArgb)
+    }
+
+    private fun isSystemDarkTheme(): Boolean =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+
+    private fun surfaceTintList(normalColor: Int, pressedOverlayColor: Int): ColorStateList =
+        ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_pressed),
+                intArrayOf(),
+            ),
+            intArrayOf(blendColors(normalColor, pressedOverlayColor, 0.14f), normalColor),
+        )
+
+    private fun blendColors(background: Int, foreground: Int, foregroundRatio: Float): Int {
+        val backgroundRatio = 1f - foregroundRatio
+        return Color.rgb(
+            (Color.red(background) * backgroundRatio + Color.red(foreground) * foregroundRatio).toInt(),
+            (Color.green(background) * backgroundRatio + Color.green(foreground) * foregroundRatio).toInt(),
+            (Color.blue(background) * backgroundRatio + Color.blue(foreground) * foregroundRatio).toInt(),
+        )
     }
 
     @Suppress("DEPRECATION")

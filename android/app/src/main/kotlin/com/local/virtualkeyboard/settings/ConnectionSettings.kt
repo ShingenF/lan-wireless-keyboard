@@ -13,7 +13,7 @@ data class ConnectionSettings(
     val scrollHapticProfile: ScrollHapticProfile = ScrollHapticProfile.STANDARD,
     val languageToggleShortcut: LanguageToggleShortcut = LanguageToggleShortcut.SHIFT,
     val inputMethodShortcut: InputMethodShortcut = InputMethodShortcut.WINDOWS_SPACE,
-    val themeColors: ThemeColors = ThemeColors(),
+    val themeSettings: ThemeSettings = ThemeSettings(),
 )
 
 object PointerAcceleration {

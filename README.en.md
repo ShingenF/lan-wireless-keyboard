@@ -17,7 +17,7 @@ Turn an Android phone into a LAN keyboard, touchpad, and game-movement controlle
 - Globe and `中/EN` buttons switch the PC input method using configurable Windows/macOS shortcut presets.
 - Pointer speed, touchpad acceleration, wheel detent spacing, inertia, and haptics are independently adjustable. `1.0×` preserves precise native motion, while faster swipes progressively approach the selected gain.
 - Android disconnects immediately when it leaves the foreground. Closing the Windows window keeps it in the notification area; choosing Exit stops it completely.
-- Background, icon, primary-text, and secondary-text colors accept HEX values.
+- Android follows the system light/dark mode by default or can be forced; one copyable dual-theme framework configures page, icon, text, input, and touchpad colors and includes an AI editing prompt.
 - The Android interface plus the Windows EXE, window, and notification area use MIT-licensed Hugeicons Stroke Rounded icons.
 
 ## Download

@@ -14,6 +14,7 @@ class ConnectionSettingsTest {
         assertEquals(ScrollHapticProfile.STANDARD, ConnectionSettings().scrollHapticProfile)
         assertEquals(LanguageToggleShortcut.SHIFT, ConnectionSettings().languageToggleShortcut)
         assertEquals(InputMethodShortcut.WINDOWS_SPACE, ConnectionSettings().inputMethodShortcut)
+        assertEquals(ThemeMode.FOLLOW_SYSTEM, ConnectionSettings().themeSettings.mode)
     }
 
     @Test

@@ -2,17 +2,32 @@ package com.local.virtualkeyboard.settings
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ThemeColorsTest {
     @Test
-    fun `new installations use the public neutral palette`() {
-        val defaults = ThemeColors()
+    fun `new installations use the public neutral light palette`() {
+        val defaults = ThemePalettes().light
 
         assertEquals("#F2F2F2", defaults.background.canonical)
         assertEquals("#B4B4B4", defaults.icon.canonical)
         assertEquals("#2F2F32", defaults.primaryText.canonical)
         assertEquals("#8E8E93", defaults.secondaryText.canonical)
+        assertEquals("#FFFFFF", defaults.inputBackground.canonical)
+        assertEquals("#FFFFFF", defaults.touchpadBackground.canonical)
+    }
+
+    @Test
+    fun `new installations include a dark palette`() {
+        val defaults = ThemePalettes().dark
+
+        assertEquals("#121214", defaults.background.canonical)
+        assertEquals("#B8B8C0", defaults.icon.canonical)
+        assertEquals("#F4F4F5", defaults.primaryText.canonical)
+        assertEquals("#A1A1AA", defaults.secondaryText.canonical)
+        assertEquals("#242428", defaults.inputBackground.canonical)
+        assertEquals("#1C1C20", defaults.touchpadBackground.canonical)
     }
 
     @Test
@@ -28,5 +43,66 @@ class ThemeColorsTest {
         assertNull(HexColor.parse("#GGGGGG"))
         assertNull(HexColor.parse("#11223344"))
         assertNull(HexColor.parse("１２３４５６"))
+    }
+
+    @Test
+    fun `theme follows Android by default and supports forced light or dark`() {
+        val defaults = ThemeSettings()
+
+        assertEquals(defaults.palettes.light, defaults.resolve(systemDark = false))
+        assertEquals(defaults.palettes.dark, defaults.resolve(systemDark = true))
+        assertEquals(defaults.palettes.light, defaults.copy(mode = ThemeMode.LIGHT).resolve(true))
+        assertEquals(defaults.palettes.dark, defaults.copy(mode = ThemeMode.DARK).resolve(false))
+    }
+
+    @Test
+    fun `theme framework round trips both palettes`() {
+        val framework = ThemeFramework.format(ThemePalettes())
+
+        assertEquals(
+            """[light]
+                |background=#F2F2F2
+                |icon=#B4B4B4
+                |primary_text=#2F2F32
+                |secondary_text=#8E8E93
+                |input_background=#FFFFFF
+                |touchpad_background=#FFFFFF
+                |
+                |[dark]
+                |background=#121214
+                |icon=#B8B8C0
+                |primary_text=#F4F4F5
+                |secondary_text=#A1A1AA
+                |input_background=#242428
+                |touchpad_background=#1C1C20""".trimMargin(),
+            framework,
+        )
+        assertEquals(ThemePalettes(), ThemeFramework.parse(framework))
+    }
+
+    @Test
+    fun `theme framework accepts edited lowercase colors and markdown fences`() {
+        val edited = ThemeFramework.format(ThemePalettes())
+            .replace("[light]", "```ini\n[light]")
+            .replace("#F2F2F2", "f4f85a") + "\n```"
+
+        assertEquals("#F4F85A", ThemeFramework.parse(edited).light.background.canonical)
+    }
+
+    @Test
+    fun `theme framework reports missing and unknown fields`() {
+        val missing = ThemeFramework.format(ThemePalettes())
+            .replace("touchpad_background=#1C1C20", "")
+        val unknown = ThemeFramework.format(ThemePalettes())
+            .replace("icon=#B4B4B4", "icons=#B4B4B4")
+
+        assertEquals(
+            "[dark] 缺少 touchpad_background",
+            assertThrows(IllegalArgumentException::class.java) { ThemeFramework.parse(missing) }.message,
+        )
+        assertEquals(
+            "第 3 行包含未知颜色项 icons",
+            assertThrows(IllegalArgumentException::class.java) { ThemeFramework.parse(unknown) }.message,
+        )
     }
 }

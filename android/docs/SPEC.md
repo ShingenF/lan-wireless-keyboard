@@ -9,10 +9,11 @@
   side-by-side direction modules, and a relative touchpad. The field remains one
   visible line high in both input modes.
 - Preserve that single-screen hierarchy. New installations default to a neutral
-  `#F2F2F2` background, `#B4B4B4` icons, white inputs/buttons, charcoal primary
-  text, and `#8E8E93` secondary text. Do not use shadows, border
-  strokes, or gradients; users may override the four configurable colours with
-  the HEX fields described below.
+  light palette with a `#F2F2F2` background, `#B4B4B4` icons, white inputs and
+  touchpad, charcoal primary text, and `#8E8E93` secondary text. Also provide a
+  dark palette. Follow Android's system dark-mode state by default; settings can
+  disable system following and force either the light or dark palette. Do not use
+  shadows, border strokes, or gradients.
 - Use the official MIT-licensed Hugeicons Free Icons 4.2.2 Stroke Rounded
   geometry for the settings, send, globe, launcher, and stemless direction icons. Arrange
   each module's four chevrons around a small circular joystick. Keep the chevrons
@@ -27,11 +28,15 @@
 - Keep the settings button transparent and use a bright saturated green for the
   connected indicator. All tappable buttons and recognised touchpad clicks provide
   Android haptic feedback.
-- Add four plain HEX inputs to the existing settings dialog for page background,
-  icon, primary-text, and secondary-text colours. Accept six hexadecimal digits
-  with an optional `#`, reject invalid or alpha values, normalise saved values to
-  uppercase `#RRGGBB`, apply them immediately after Save, and persist them across
-  app restarts. Keep white surfaces and connection-state indicator colours fixed.
+- Replace the individual colour inputs with one editable, copyable configuration
+  framework containing `[light]` and `[dark]` sections. Each section exposes page
+  background, icon, primary text, secondary text, input background, and touchpad
+  background. Show an AI prompt that explains the fields and provide one action
+  that copies the prompt together with the current framework for use in ChatGPT,
+  Claude, or similar tools. Accept six hexadecimal digits with an optional `#`,
+  reject invalid, missing, duplicate, unknown, or alpha values, normalise saved
+  values to uppercase `#RRGGBB`, apply them immediately after Save, and persist
+  them across app restarts. Keep connection-state indicator colours fixed.
 - Put `ESC` at the touchpad's top-left and a dedicated right-click button at its
   top-right without increasing the page height. Put the gesture hint below those
   buttons. A one-finger drag moves the

@@ -41,9 +41,11 @@
   top-right without increasing the page height. Put the gesture hint below those
   buttons. A one-finger drag moves the
   pointer and a two-finger slide scrolls until the final finger lifts. A completed
-  single tap sends left click immediately; two completed taps therefore remain two
-  left clicks and are interpreted by Windows as a standard double-click. Tapping
-  again, holding, and moving holds the left button for a drag until release. A
+  single tap sends a left click after the double-tap window closes. Two nearby taps
+  defer both left clicks until the second contact lifts, when Windows receives a
+  standard double-click. Holding one contact for one second holds the left button
+  until release and provides a second haptic pulse when that hold begins. Tapping
+  again, holding, and moving remains available as a fallback drag gesture. A
   two-finger tap and the dedicated button send right click.
   Tap-sized motion is never sent to Windows, so a recognised click occurs at the
   pointer position from before that touch.

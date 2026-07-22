@@ -1,6 +1,7 @@
 package com.local.virtualkeyboard.ui
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -34,6 +35,7 @@ class TouchpadView @JvmOverloads constructor(
         doubleTapSlop = viewConfiguration.scaledDoubleTapSlop.toFloat(),
         touchSlop = viewConfiguration.scaledTouchSlop.toFloat(),
         tapTimeoutMillis = TAP_TIMEOUT_MILLIS,
+        longPressTimeoutMillis = LONG_PRESS_TIMEOUT_MILLIS,
     )
     private val multiTouchMovementTracker =
         MultiTouchMovementTracker(viewConfiguration.scaledTouchSlop.toFloat())
@@ -43,6 +45,14 @@ class TouchpadView @JvmOverloads constructor(
     private val movementAccumulator = PointerDeltaAccumulator()
     private var lastMoveEmission = 0L
     private var lastPointerSampleTime = 0L
+    private val pendingTapRunnable = Runnable {
+        dispatchTapActions(tapResolver.onTapTimeout(SystemClock.uptimeMillis()))
+    }
+    private val longPressRunnable = Runnable {
+        val actions = tapResolver.onLongPress(SystemClock.uptimeMillis())
+        if (TapAction.LEFT_BUTTON_DOWN in actions) tapEligible = false
+        dispatchTapActions(actions)
+    }
 
     init {
         isFocusable = false
@@ -53,19 +63,24 @@ class TouchpadView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                removeCallbacks(pendingTapRunnable)
+                removeCallbacks(longPressRunnable)
                 multiTouchMovementTracker.reset()
                 downTime = event.eventTime
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 dispatchTapActions(tapResolver.onDown(event.x, event.y, event.eventTime))
                 pointerTracker.onDown(event.x, event.y)
                 lastAverageY = event.y
                 tapEligible = true
                 movementAccumulator.reset()
                 lastPointerSampleTime = event.eventTime
+                postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT_MILLIS)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
+                removeCallbacks(longPressRunnable)
                 val actions = if (tapResolver.isMultiTouchActive()) {
                     if (multiTouchMovementTracker.addContacts(touchContacts(event))) {
                         tapResolver.onMultiTouchMoved()
@@ -106,6 +121,7 @@ class TouchpadView @JvmOverloads constructor(
                     tapEligible = false
                 } else if (event.pointerCount == 1) {
                     pointerTracker.onMove(event.x, event.y)?.let { delta ->
+                        removeCallbacks(longPressRunnable)
                         tapEligible = false
                         dispatchTapActions(tapResolver.onMove(event.x, event.y))
                         val accelerated = accelerate(delta, event.eventTime)
@@ -128,6 +144,7 @@ class TouchpadView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP -> {
+                removeCallbacks(longPressRunnable)
                 if (tapResolver.isMultiTouchActive() &&
                     multiTouchMovementTracker.update(touchContacts(event))
                 ) {
@@ -139,6 +156,8 @@ class TouchpadView @JvmOverloads constructor(
                 } else if (tapEligible && event.eventTime - downTime <= TAP_TIMEOUT_MILLIS) {
                     performClick()
                     dispatchTapActions(tapResolver.onTap(event.x, event.y, event.eventTime))
+                    removeCallbacks(pendingTapRunnable)
+                    postDelayed(pendingTapRunnable, DOUBLE_TAP_TIMEOUT_MILLIS)
                 } else {
                     dispatchTapActions(tapResolver.onGestureEnded())
                 }
@@ -148,6 +167,8 @@ class TouchpadView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                removeCallbacks(pendingTapRunnable)
+                removeCallbacks(longPressRunnable)
                 flushMovement()
                 dispatchTapActions(tapResolver.cancel())
                 multiTouchMovementTracker.reset()
@@ -164,6 +185,8 @@ class TouchpadView @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
+        removeCallbacks(pendingTapRunnable)
+        removeCallbacks(longPressRunnable)
         flushMovement()
         dispatchTapActions(tapResolver.cancel())
         multiTouchMovementTracker.reset()
@@ -174,7 +197,6 @@ class TouchpadView @JvmOverloads constructor(
         actions.forEach { action ->
             when (action) {
                 TapAction.LEFT_CLICK -> {
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     listener?.onLeftClick()
                 }
                 TapAction.RIGHT_CLICK -> {
@@ -252,6 +274,8 @@ class TouchpadView @JvmOverloads constructor(
     private companion object {
         const val MOVE_INTERVAL_MILLIS = 16L
         const val TAP_TIMEOUT_MILLIS = 250L
+        val DOUBLE_TAP_TIMEOUT_MILLIS = ViewConfiguration.getDoubleTapTimeout().toLong()
+        const val LONG_PRESS_TIMEOUT_MILLIS = 1_000L
         const val ACCELERATION_START_DP_PER_MILLISECOND = 0.08f
         const val ACCELERATION_FULL_DP_PER_MILLISECOND = 1.2f
     }

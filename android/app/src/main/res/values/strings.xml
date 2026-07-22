@@ -25,7 +25,7 @@
     <string name="game_key_s">S</string>
     <string name="game_key_d">D</string>
     <string name="touchpad">触控板</string>
-    <string name="touchpad_gestures">轻点左键 · 连点两次双击\n轻点后按住拖动 · 双指滚动/右键</string>
+    <string name="touchpad_gestures">轻点左键 · 第二次抬手触发双击\n长按 1 秒或轻点后按住拖动 · 双指滚动/右键</string>
     <string name="escape_key">ESC</string>
     <string name="escape_key_description">Escape 键</string>
     <string name="right_mouse_button">右键</string>

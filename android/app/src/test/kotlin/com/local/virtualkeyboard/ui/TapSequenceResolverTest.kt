@@ -7,21 +7,27 @@ import org.junit.Test
 
 class TapSequenceResolverTest {
     @Test
-    fun `a lone tap becomes one left click immediately`() {
+    fun `a lone tap becomes one left click after the double tap window`() {
         val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
+        assertEquals(emptyList<TapAction>(), resolver.onTapTimeout(eventTimeMillis = 1_299L))
+        assertEquals(
+            listOf(TapAction.LEFT_CLICK),
+            resolver.onTapTimeout(eventTimeMillis = 1_300L),
+        )
+        assertEquals(emptyList<TapAction>(), resolver.onTapTimeout(eventTimeMillis = 1_600L))
     }
 
     @Test
-    fun `two nearby taps become two immediate left clicks`() {
+    fun `double click is emitted only after the second finger leaves`() {
         val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
         assertEquals(
@@ -29,36 +35,36 @@ class TapSequenceResolverTest {
             resolver.onDown(x = 106f, y = 104f, eventTimeMillis = 1_220L),
         )
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            listOf(TapAction.LEFT_CLICK, TapAction.LEFT_CLICK),
             resolver.onTap(x = 106f, y = 104f, eventTimeMillis = 1_340L),
         )
     }
 
     @Test
-    fun `aborting an armed second tap does not replay the completed first click`() {
+    fun `aborting an armed second tap preserves the completed first click`() {
         val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
         assertEquals(
             emptyList<TapAction>(),
             resolver.onDown(x = 104f, y = 105f, eventTimeMillis = 1_250L),
         )
-        assertEquals(emptyList<TapAction>(), resolver.onContactAborted())
+        assertEquals(listOf(TapAction.LEFT_CLICK), resolver.onContactAborted())
     }
 
     @Test
-    fun `a distant second contact does not pause the pending single click`() {
+    fun `a distant second contact resolves the pending single click`() {
         val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
         assertEquals(
-            emptyList<TapAction>(),
+            listOf(TapAction.LEFT_CLICK),
             resolver.onDown(x = 200f, y = 200f, eventTimeMillis = 1_200L),
         )
     }
@@ -72,7 +78,7 @@ class TapSequenceResolverTest {
         )
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
         assertEquals(
@@ -87,11 +93,72 @@ class TapSequenceResolverTest {
     }
 
     @Test
-    fun `starting multi touch after a completed tap does not replay that left click`() {
+    fun `holding one contact for one second holds the left button until release`() {
+        val resolver = TapSequenceResolver(
+            doubleTapTimeoutMillis = 300L,
+            doubleTapSlop = 32f,
+            longPressTimeoutMillis = 1_000L,
+        )
+
+        assertEquals(
+            emptyList<TapAction>(),
+            resolver.onDown(x = 100f, y = 100f, eventTimeMillis = 1_000L),
+        )
+        assertEquals(
+            emptyList<TapAction>(),
+            resolver.onLongPress(eventTimeMillis = 1_999L),
+        )
+        assertEquals(
+            listOf(TapAction.LEFT_BUTTON_DOWN),
+            resolver.onLongPress(eventTimeMillis = 2_000L),
+        )
+        assertEquals(emptyList<TapAction>(), resolver.onLongPress(eventTimeMillis = 2_100L))
+        assertEquals(listOf(TapAction.LEFT_BUTTON_UP), resolver.onGestureEnded())
+    }
+
+    @Test
+    fun `moving before one second keeps ordinary pointer movement from becoming a hold`() {
+        val resolver = TapSequenceResolver(
+            doubleTapTimeoutMillis = 300L,
+            doubleTapSlop = 32f,
+            longPressTimeoutMillis = 1_000L,
+        )
+
+        resolver.onDown(x = 100f, y = 100f, eventTimeMillis = 1_000L)
+        assertEquals(emptyList<TapAction>(), resolver.onMove(x = 140f, y = 100f))
+        assertEquals(emptyList<TapAction>(), resolver.onLongPress(eventTimeMillis = 2_000L))
+        assertEquals(emptyList<TapAction>(), resolver.onGestureEnded())
+    }
+
+    @Test
+    fun `long press drag after a tap does not emit a double click`() {
+        val resolver = TapSequenceResolver(
+            doubleTapTimeoutMillis = 300L,
+            doubleTapSlop = 32f,
+            longPressTimeoutMillis = 1_000L,
+        )
+
+        assertEquals(
+            emptyList<TapAction>(),
+            resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
+        )
+        assertEquals(
+            emptyList<TapAction>(),
+            resolver.onDown(x = 104f, y = 104f, eventTimeMillis = 1_200L),
+        )
+        assertEquals(
+            listOf(TapAction.LEFT_BUTTON_DOWN),
+            resolver.onLongPress(eventTimeMillis = 2_200L),
+        )
+        assertEquals(listOf(TapAction.LEFT_BUTTON_UP), resolver.onGestureEnded())
+    }
+
+    @Test
+    fun `starting multi touch after a completed tap resolves that left click once`() {
         val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
 
         assertEquals(
-            listOf(TapAction.LEFT_CLICK),
+            emptyList<TapAction>(),
             resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L),
         )
         assertEquals(
@@ -99,7 +166,7 @@ class TapSequenceResolverTest {
             resolver.onDown(x = 104f, y = 104f, eventTimeMillis = 1_180L),
         )
         assertEquals(
-            emptyList<TapAction>(),
+            listOf(TapAction.LEFT_CLICK),
             resolver.onMultiTouchStarted(gestureStartTimeMillis = 1_180L, rightClickEligible = true),
         )
     }
@@ -195,6 +262,16 @@ class TapSequenceResolverTest {
         assertEquals(listOf(TapAction.LEFT_BUTTON_DOWN), resolver.onMove(x = 114f, y = 104f))
 
         assertEquals(listOf(TapAction.LEFT_BUTTON_UP), resolver.cancel())
+        assertEquals(emptyList<TapAction>(), resolver.cancel())
+    }
+
+    @Test
+    fun `cancelling an armed second contact preserves the completed first click`() {
+        val resolver = TapSequenceResolver(doubleTapTimeoutMillis = 300L, doubleTapSlop = 32f)
+        resolver.onTap(x = 100f, y = 100f, eventTimeMillis = 1_000L)
+        resolver.onDown(x = 104f, y = 104f, eventTimeMillis = 1_180L)
+
+        assertEquals(listOf(TapAction.LEFT_CLICK), resolver.cancel())
         assertEquals(emptyList<TapAction>(), resolver.cancel())
     }
 }

@@ -13,7 +13,7 @@ Turn an Android phone into a LAN keyboard, touchpad, and game-movement controlle
 - Chinese phonetic composition stays on the phone; only committed text is sent.
 - Synchronous mode sends input immediately; deferred mode keeps a local draft until Send is tapped.
 - Includes arrow keys, a W/A/S/D game joystick, Esc, a dedicated right-click button, and an optional scroll strip.
-- The touchpad supports movement, tap-to-left-click, left-button double-click, tap-then-hold dragging, two-finger scrolling, and two-finger right-click.
+- The touchpad supports movement, tap-to-left-click, double-click on the second lift, one-second long-press dragging, tap-then-hold dragging, two-finger scrolling, and two-finger right-click.
 - Globe and `中/EN` buttons switch the PC input method using configurable Windows/macOS shortcut presets.
 - Pointer speed, touchpad acceleration, wheel detent spacing, inertia, and haptics are independently adjustable. `1.0×` preserves precise native motion, while faster swipes progressively approach the selected gain.
 - Android disconnects immediately when it leaves the foreground. Closing the Windows window keeps it in the notification area; choosing Exit stops it completely.
@@ -81,7 +81,7 @@ On first launch, the receiver creates a pairing code and TLS certificate in `run
 - Select **Synchronous mode** to send immediately. **Deferred mode** keeps a local draft and sends the complete text only when the Send icon is tapped. Both modes keep the field one line high.
 - In synchronous mode, the globe button defaults to `Win + Space`; `中/EN` defaults to `Shift`. Choose another fixed preset in Settings if needed.
 - The left control maps to Windows arrow keys. The right W/A/S/D buttons and eight-way joystick control game movement.
-- Drag on the touchpad to move the pointer. Tap for left click, tap twice for a standard left-button double-click, or tap again and hold to drag. Two-finger slides scroll; a two-finger tap or the top-right button sends right click.
+- Drag on the touchpad to move the pointer. Tap for left click; a second completed tap emits the standard left-button double-click only when that finger lifts. Hold for one second to hold the left button and receive a second haptic pulse; tap-then-hold remains available as a fallback drag gesture. Two-finger slides scroll; a two-finger tap or the top-right button sends right click.
 - The independent scroll strip can be disabled in Settings; the top-left touchpad button sends Esc.
 - Adjust pointer speed and touchpad acceleration separately in Settings. `1.0×` acceleration is neutral; higher values add more distance to fast swipes while preserving slow precision.
 - When the Android activity leaves the foreground, the connection closes and no network worker or queued input remains active.

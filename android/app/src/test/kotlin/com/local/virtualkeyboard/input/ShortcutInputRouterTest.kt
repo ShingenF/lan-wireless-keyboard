@@ -180,6 +180,53 @@ class ShortcutInputRouterTest {
     }
 
     @Test
+    fun `expired duplicate guard cannot swallow later matching input`() {
+        val selection = ShortcutSelection().apply { longPress(ShortcutModifier.CONTROL) }
+        val commands = mutableListOf<OutgoingCommand>()
+        val router = ShortcutInputRouter(selection) {
+            commands += it
+            true
+        }
+        var now = 1_000L
+        val guard = ShortcutDuplicateGuard(
+            router = router,
+            nowMillis = { now },
+            duplicateWindowMillis = 250L,
+        )
+        guard.record(ShortcutKey.Character('c'))
+        now += 251L
+
+        val replacementConnection = ShortcutCompositionCoordinator(router, guard)
+
+        assertEquals(ShortcutInputResult.HANDLED, replacementConnection.commitText("c"))
+        assertEquals(
+            listOf(ShortcutKey.Character('c')),
+            commands.map { (it as OutgoingCommand.ShortcutChord).key },
+        )
+    }
+
+    @Test
+    fun `different input clears a pending duplicate guard`() {
+        val selection = ShortcutSelection().apply { longPress(ShortcutModifier.CONTROL) }
+        val commands = mutableListOf<OutgoingCommand>()
+        val router = ShortcutInputRouter(selection) {
+            commands += it
+            true
+        }
+        val guard = ShortcutDuplicateGuard(router)
+        guard.record(ShortcutKey.Character('c'))
+        val replacementConnection = ShortcutCompositionCoordinator(router, guard)
+
+        replacementConnection.commitText("x")
+        replacementConnection.commitText("c")
+
+        assertEquals(
+            listOf(ShortcutKey.Character('x'), ShortcutKey.Character('c')),
+            commands.map { (it as OutgoingCommand.ShortcutChord).key },
+        )
+    }
+
+    @Test
     fun `canceling composition prevents a stale character after a special key`() {
         val selection = ShortcutSelection().apply { longPress(ShortcutModifier.CONTROL) }
         val commands = mutableListOf<OutgoingCommand>()

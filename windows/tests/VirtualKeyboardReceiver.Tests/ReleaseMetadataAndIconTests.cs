@@ -5,15 +5,30 @@ namespace VirtualKeyboardReceiver.Tests;
 public sealed class ReleaseMetadataAndIconTests
 {
     [Fact]
-    public void WindowsProjectUsesV11ReleaseMetadata()
+    public void WindowsProjectUsesV13ReleaseMetadata()
     {
         var project = ReadRepoFile("src/VirtualKeyboardReceiver/VirtualKeyboardReceiver.csproj");
 
-        Assert.Contains("<Version>1.1.0</Version>", project);
-        Assert.Contains("<AssemblyVersion>1.1.0.0</AssemblyVersion>", project);
-        Assert.Contains("<FileVersion>1.1.0.0</FileVersion>", project);
-        Assert.Contains("<InformationalVersion>1.1.0</InformationalVersion>", project);
-        Assert.Contains("version=\"1.1.0.0\"", ReadRepoFile("src/VirtualKeyboardReceiver/app.manifest"));
+        Assert.Contains("<Version>1.3.0</Version>", project);
+        Assert.Contains("<AssemblyVersion>1.3.0.0</AssemblyVersion>", project);
+        Assert.Contains("<FileVersion>1.3.0.0</FileVersion>", project);
+        Assert.Contains("<InformationalVersion>1.3.0</InformationalVersion>", project);
+        Assert.Contains("version=\"1.3.0.0\"", ReadRepoFile("src/VirtualKeyboardReceiver/app.manifest"));
+    }
+
+    [Fact]
+    public void ReleaseProjectsRemoveLocalDebugPaths()
+    {
+        var appProject = ReadRepoFile("src/VirtualKeyboardReceiver/VirtualKeyboardReceiver.csproj");
+        var coreProject = ReadRepoFile("src/VirtualKeyboardReceiver.Core/VirtualKeyboardReceiver.Core.csproj");
+
+        foreach (var project in new[] { appProject, coreProject })
+        {
+            Assert.Contains("<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>", project);
+            Assert.Contains("<PathMap>$(MSBuildProjectDirectory)=/_/src/", project);
+            Assert.Contains("<DebugType>None</DebugType>", project);
+            Assert.Contains("<DebugSymbols>false</DebugSymbols>", project);
+        }
     }
 
     [Fact]

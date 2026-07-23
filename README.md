@@ -23,12 +23,12 @@
 
 ## 下载
 
-在 GitHub 的 **Releases** 页面下载 Android `v1.2.0` 与兼容的 Windows 接收端 `v1.1.0`：
+在 GitHub 的 **Releases** 页面下载同一版本的 Android 客户端与 Windows 接收端：
 
-- `LAN-Wireless-Keyboard-Android-v1.2.0.apk`
-- `LAN-Wireless-Keyboard-Windows-x64-v1.1.0.zip`
+- `LAN-Wireless-Keyboard-Android-v1.3.0.apk`
+- `LAN-Wireless-Keyboard-Windows-x64-v1.3.0.zip`
 
-可用同一 Release 中的 `SHA256SUMS.txt` 校验下载文件。Windows 接收端协议未变，本次沿用 `v1.1.0`；它仅支持 64 位 x64 Windows。
+可用同一 Release 中的 `SHA256SUMS.txt` 校验下载文件。组合快捷键需要 `v1.3.0` Windows 接收端；旧版接收端不能解析该命令。Windows 接收端仅支持 64 位 x64 Windows。
 
 ## 1. 安装 Windows 的 .NET 环境
 

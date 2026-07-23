@@ -65,6 +65,7 @@ Every command contains `version: 1`, `type`, `seq` (JSON signed 64-bit integer),
 - `keyPress`: `key` is `up`, `down`, `left`, `right`, `backspace`, `enter`, or `escape`.
 - `keyState`: `key` is `w`, `a`, `s`, or `d`; `action` is `down` or `up`.
 - `systemShortcut`: `shortcut` is `shift`, `controlSpace`, `capsLock`, `windowsSpace`, `controlShift`, or `altShift`.
+- `shortcutChord`: `modifiers` is a non-empty array of unique values drawn from `shift`, `control`, `alt`, and `meta`; `key` is one printable ASCII character or `space`, `enter`, or `backspace`.
 - `pointerMove`: integer `dx`, `dy`.
 - `pointerButton`: `button` is `left` or `right`; `action` is `down` or `up`.
 - `wheel`: integer `delta`.
@@ -80,6 +81,7 @@ Every successful command carrying a sequence number receives `{"version":1,"type
 - Arrow keys, Backspace, Enter, and Escape map to their Win32 virtual keys; Escape uses `VK_ESCAPE`.
 - `keyState` uses fixed hardware scan codes: W `0x11`, A `0x1E`, S `0x1F`, and D `0x20`. A `down` action sends one `KEYEVENTF_SCANCODE` input; an `up` action adds `KEYEVENTF_KEYUP` and does not use Unicode or virtual-key clicks. Repeated state transitions are idempotent. Disconnect, session exceptions, and shutdown release every held mouse button and game key best-effort, continuing after individual release failures and clearing local held state.
 - `systemShortcut` sends one scan-code `INPUT[]` chord with reverse release order. The exact mappings are: `shift` = Left Shift (`0x2A`); `controlSpace` = Left Ctrl (`0x1D`) + Space (`0x39`); `capsLock` = Caps Lock (`0x3A`); `windowsSpace` = Left Win (`0x5B`, `KEYEVENTF_EXTENDEDKEY`) + Space (`0x39`); `controlShift` = Left Ctrl (`0x1D`) + Left Shift (`0x2A`); and `altShift` = Left Alt (`0x38`, without `KEYEVENTF_EXTENDEDKEY`) + Left Shift (`0x2A`). Each complete chord is exactly one `INPUT[]` and one `SendInput` call. If the batch fails, a best-effort reverse key-up compensation batch is sent and the original failure remains authoritative.
+- `shortcutChord` maps the requested modifiers and printable US-ASCII or special key to one scan-code `INPUT[]` batch. Intrinsic Shift/Ctrl/Alt requirements from the active keyboard mapping are merged without duplicate modifier presses; Left Win uses `KEYEVENTF_EXTENDEDKEY`. The main key and modifiers are released in reverse order, and a failed batch triggers a best-effort compensating key-up batch while preserving the original failure.
 - Relative pointer movement, wheel delta, and left/right mouse down/up map to corresponding `SendInput` mouse flags.
 - Tests fake only the Win32 system boundary; production uses the real `Win32InputInjector`.
 

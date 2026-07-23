@@ -23,12 +23,12 @@ Turn an Android phone into a LAN keyboard, touchpad, and game-movement controlle
 
 ## Download
 
-Download Android `v1.2.0` and the compatible Windows receiver `v1.1.0` from GitHub **Releases**:
+Download the matching Android client and Windows receiver from GitHub **Releases**:
 
-- `LAN-Wireless-Keyboard-Android-v1.2.0.apk`
-- `LAN-Wireless-Keyboard-Windows-x64-v1.1.0.zip`
+- `LAN-Wireless-Keyboard-Android-v1.3.0.apk`
+- `LAN-Wireless-Keyboard-Windows-x64-v1.3.0.zip`
 
-Use `SHA256SUMS.txt` from the same release to verify the downloads. The receiver protocol is unchanged, so this release retains Windows `v1.1.0`; it supports x64 Windows only.
+Use `SHA256SUMS.txt` from the same release to verify the downloads. Modifier chords require the Windows `v1.3.0` receiver; older receivers cannot parse that command. The receiver supports x64 Windows only.
 
 ## 1. Install the Windows .NET runtime
 

@@ -100,25 +100,43 @@ class ShortcutCompositionCoordinator(
 
 class ShortcutDuplicateGuard(
     private val router: ShortcutInputRouter,
+    private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val duplicateWindowMillis: Long = DEFAULT_DUPLICATE_WINDOW_MILLIS,
 ) {
-    private var expectedKey: ShortcutKey? = null
+    private data class ExpectedKey(
+        val key: ShortcutKey,
+        val expiresAtMillis: Long,
+    )
+
+    private var expectedKey: ExpectedKey? = null
+
+    init {
+        require(duplicateWindowMillis >= 0L) {
+            "Duplicate window must not be negative."
+        }
+    }
 
     fun record(key: ShortcutKey) {
-        expectedKey = key
+        expectedKey = ExpectedKey(
+            key = key,
+            expiresAtMillis = nowMillis() + duplicateWindowMillis,
+        )
     }
 
     fun consumeText(text: String): Boolean {
-        val key = router.keyFromText(text) ?: return false
-        if (key != expectedKey) {
-            expectedKey = null
-            return false
-        }
+        val expected = expectedKey ?: return false
+        if (text.isEmpty()) return false
         expectedKey = null
-        return true
+        if (nowMillis() > expected.expiresAtMillis) return false
+        return router.keyFromText(text) == expected.key
     }
 
     fun clear() {
         expectedKey = null
+    }
+
+    private companion object {
+        const val DEFAULT_DUPLICATE_WINDOW_MILLIS = 250L
     }
 }
 

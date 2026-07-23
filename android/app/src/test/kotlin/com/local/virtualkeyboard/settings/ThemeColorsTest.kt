@@ -94,16 +94,18 @@ class ThemeColorsTest {
     }
 
     @Test
-    fun `legacy six field frameworks receive the default accent`() {
-        val legacy = ThemeFramework.format(ThemePalettes())
+    fun `theme framework rejects a missing accent`() {
+        val missingAccent = ThemeFramework.format(ThemePalettes())
             .lineSequence()
-            .filterNot { it.startsWith("accent=") }
+            .filterNot { it == "accent=#0071E3" }
             .joinToString("\n")
 
-        val parsed = ThemeFramework.parse(legacy)
-
-        assertEquals("#0071E3", parsed.light.accent.canonical)
-        assertEquals("#0071E3", parsed.dark.accent.canonical)
+        assertEquals(
+            "[light] 缺少 accent",
+            assertThrows(IllegalArgumentException::class.java) {
+                ThemeFramework.parse(missingAccent)
+            }.message,
+        )
     }
 
     @Test

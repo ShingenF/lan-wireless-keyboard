@@ -6,7 +6,7 @@ Windows WPF receiver for the v1 virtual-keyboard TLS protocol. It listens on TCP
 
 The release ZIP contains `VirtualKeyboardReceiver.exe` and requires the .NET 10 Desktop Runtime (x64). Double-click the EXE and approve UAC if Windows prompts: the application manifest requests administrator privileges so the receiver can inject into normal and elevated applications. Windows Firewall may also ask whether to allow private-network access; LAN clients require that permission.
 
-The Windows product version is `1.1.0`; its assembly and file versions are `1.1.0.0`. This packaging version is independent of the wire protocol, which remains protocol v1.
+The Windows product version is `1.3.0`; its assembly and file versions are `1.3.0.0`. It adds the protocol-v1 `shortcutChord` command used by Android `v1.3.0`; older receivers cannot parse that command.
 
 Minimizing keeps the listener active. Clicking the window close button hides the receiver to its Windows notification-area icon and keeps listening. Double-click the icon, or right-click it and choose `打开`, to restore and activate the window. Right-click and choose `退出` to stop the listener, close the client, release held mouse buttons, remove the icon, and terminate the process. There is no service, autostart, hidden background self-start, or silent elevation. Even when elevated, the receiver cannot inject into the UAC secure desktop.
 

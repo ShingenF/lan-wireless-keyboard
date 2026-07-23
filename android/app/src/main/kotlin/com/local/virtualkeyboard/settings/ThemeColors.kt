@@ -167,13 +167,13 @@ object ThemeFramework {
 
     private fun parsePalette(name: String, values: Map<ThemeField, HexColor>?): ThemeColors {
         val paletteValues = requireNotNull(values) { "缺少 [$name]" }
-        ThemeField.entries.firstOrNull { it != ThemeField.ACCENT && it !in paletteValues }?.let { missing ->
+        ThemeField.entries.firstOrNull { it !in paletteValues }?.let { missing ->
             throw IllegalArgumentException("[$name] 缺少 ${missing.key}")
         }
         return ThemeColors(
             background = paletteValues.getValue(ThemeField.BACKGROUND),
             icon = paletteValues.getValue(ThemeField.ICON),
-            accent = paletteValues[ThemeField.ACCENT] ?: HexColor.DEFAULT_ACCENT,
+            accent = paletteValues.getValue(ThemeField.ACCENT),
             primaryText = paletteValues.getValue(ThemeField.PRIMARY_TEXT),
             secondaryText = paletteValues.getValue(ThemeField.SECONDARY_TEXT),
             inputBackground = paletteValues.getValue(ThemeField.INPUT_BACKGROUND),

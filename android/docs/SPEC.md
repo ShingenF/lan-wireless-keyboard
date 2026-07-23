@@ -26,8 +26,9 @@
   a button or returning the joystick to its dead zone releases only the corresponding
   movement key. Keep both modules compact, with small internal and external spacing.
 - Keep the settings button transparent and use a bright saturated green for the
-  connected indicator. All tappable buttons and recognised touchpad clicks provide
-  Android haptic feedback.
+  connected indicator. All tappable buttons, recognised touchpad clicks, and drag
+  starts provide Android haptic feedback. Raw touchpad contact and pointer movement
+  do not provide haptic feedback.
 - Replace the individual colour inputs with one editable, copyable configuration
   framework containing `[light]` and `[dark]` sections. Each section exposes page
   background, icon, primary text, secondary text, input background, and touchpad
@@ -44,7 +45,7 @@
   single tap sends a left click after the double-tap window closes. Two nearby taps
   defer both left clicks until the second contact lifts, when Windows receives a
   standard double-click. Holding one contact for one second holds the left button
-  until release and provides a second haptic pulse when that hold begins. Tapping
+  until release and provides a haptic pulse when that hold begins. Tapping
   again, holding, and moving remains available as a fallback drag gesture. A
   two-finger tap and the dedicated button send right click.
   Tap-sized motion is never sent to Windows, so a recognised click occurs at the

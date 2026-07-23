@@ -67,7 +67,6 @@ class TouchpadView @JvmOverloads constructor(
                 removeCallbacks(longPressRunnable)
                 multiTouchMovementTracker.reset()
                 downTime = event.eventTime
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 dispatchTapActions(tapResolver.onDown(event.x, event.y, event.eventTime))
                 pointerTracker.onDown(event.x, event.y)
                 lastAverageY = event.y
@@ -194,6 +193,9 @@ class TouchpadView @JvmOverloads constructor(
     }
 
     private fun dispatchTapActions(actions: List<TapAction>) {
+        if (TapAction.LEFT_CLICK in actions) {
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        }
         actions.forEach { action ->
             when (action) {
                 TapAction.LEFT_CLICK -> {

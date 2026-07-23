@@ -1,6 +1,7 @@
 package com.local.virtualkeyboard
 
 import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ClipData
@@ -23,6 +24,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
+import android.view.WindowInsetsAnimation
 import android.view.WindowInsetsController
 import android.widget.EditText
 import android.widget.CheckBox
@@ -57,6 +59,9 @@ import com.local.virtualkeyboard.settings.ThemeSettings
 import com.local.virtualkeyboard.settings.requiresConnectionRestart
 import com.local.virtualkeyboard.ui.JoystickDirection
 import com.local.virtualkeyboard.ui.JoystickView
+import com.local.virtualkeyboard.ui.ImePanelMotionState
+import com.local.virtualkeyboard.ui.ImePanelMotionUpdate
+import com.local.virtualkeyboard.ui.ImePanelVisibilityUpdate
 import com.local.virtualkeyboard.ui.ScrollStripView
 import com.local.virtualkeyboard.ui.ShortcutPanelView
 import com.local.virtualkeyboard.ui.TouchpadView
@@ -78,6 +83,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val gameMovementController = GameMovementController { sendCommand(it) }
     private var pendingImeHide: Runnable? = null
+    private var pendingLegacyImeShowRollback: Runnable? = null
+    private var legacyImeVisible = false
 
     private var networkClient: NetworkClient? = null
     private var activityVisible = false
@@ -105,6 +112,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         installImeInsetHandling(findViewById(R.id.mainRoot))
 
         inputView.configure(commandSink = ::sendCommand)
+        installLegacyImeLaunchPreparation()
         shortcutPanel.setOnSelectionChangedListener {
             inputView.refreshShortcutInputConnection()
         }
@@ -254,6 +262,12 @@ class MainActivity : Activity(), NetworkClient.Listener {
         repeatCancellations.forEach { it() }
         pendingImeHide?.let(mainHandler::removeCallbacks)
         pendingImeHide = null
+        pendingLegacyImeShowRollback?.let(mainHandler::removeCallbacks)
+        pendingLegacyImeShowRollback = null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            legacyImeVisible = false
+            shortcutPanel.setImeVisible(false, animate = false)
+        }
         gameMovementController.releaseAll()
         scrollStripView.cancelMotion()
         if (!isChangingConfigurations) shortcutPanel.resetSelection()
@@ -457,23 +471,104 @@ class MainActivity : Activity(), NetworkClient.Listener {
     }
 
     private fun installImeInsetHandling(root: View) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            val visibleFrame = Rect()
-            root.viewTreeObserver.addOnGlobalLayoutListener {
-                root.getWindowVisibleDisplayFrame(visibleFrame)
-                val obscuredHeight = root.rootView.height - visibleFrame.bottom
-                updateShortcutPanelImeVisibility(obscuredHeight > dp(100))
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            installAnimatedImeInsetHandling(root)
             return
         }
+
+        val visibleFrame = Rect()
+        var baselineObscuredHeight: Int? = null
+        root.viewTreeObserver.addOnGlobalLayoutListener {
+            root.getWindowVisibleDisplayFrame(visibleFrame)
+            val obscuredHeight = root.rootView.height - visibleFrame.bottom
+            val baseline = baselineObscuredHeight
+                ?.let { minOf(it, obscuredHeight) }
+                ?: obscuredHeight
+            baselineObscuredHeight = baseline
+            updateLegacyShortcutPanelImeVisibility(
+                obscuredHeight > baseline + dp(LEGACY_IME_VISIBILITY_THRESHOLD_DP),
+            )
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun installLegacyImeLaunchPreparation() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return
+        inputView.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN && !legacyImeVisible) {
+                pendingImeHide?.let(mainHandler::removeCallbacks)
+                pendingImeHide = null
+                pendingLegacyImeShowRollback?.let(mainHandler::removeCallbacks)
+                shortcutPanel.setImeVisible(true, animate = false)
+                val rollback = Runnable {
+                    pendingLegacyImeShowRollback = null
+                    if (!legacyImeVisible) shortcutPanel.setImeVisible(false, animate = false)
+                }
+                pendingLegacyImeShowRollback = rollback
+                mainHandler.postDelayed(rollback, LEGACY_IME_SHOW_TIMEOUT_MILLIS)
+            }
+            false
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.R)
+    private fun installAnimatedImeInsetHandling(root: View) {
         val originalLeft = root.paddingLeft
         val originalTop = root.paddingTop
         val originalRight = root.paddingRight
         val originalBottom = root.paddingBottom
+        val panelMotionState = ImePanelMotionState()
+        var activeImeAnimation: WindowInsetsAnimation? = null
+
+        fun applyPanelMotion(update: ImePanelMotionUpdate) {
+            shortcutPanel.translationY = update.translationY.toFloat()
+            when (update.visibility) {
+                ImePanelVisibilityUpdate.KEEP -> Unit
+                ImePanelVisibilityUpdate.SHOW -> shortcutPanel.setImeVisible(true, animate = false)
+                ImePanelVisibilityUpdate.HIDE -> shortcutPanel.setImeVisible(false, animate = false)
+            }
+        }
+
+        root.setWindowInsetsAnimationCallback(
+            object : WindowInsetsAnimation.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                override fun onPrepare(animation: WindowInsetsAnimation) {
+                    if (animation.typeMask and WindowInsets.Type.ime() == 0) return
+                    activeImeAnimation = animation
+                    applyPanelMotion(panelMotionState.onAnimationPrepare())
+                }
+
+                override fun onProgress(
+                    insets: WindowInsets,
+                    runningAnimations: MutableList<WindowInsetsAnimation>,
+                ): WindowInsets {
+                    if (activeImeAnimation != null) {
+                        val systemBottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom
+                        val imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom
+                        applyPanelMotion(
+                            panelMotionState.onAnimationProgress(
+                                maxOf(systemBottom, imeBottom),
+                            ),
+                        )
+                    }
+                    return insets
+                }
+
+                override fun onEnd(animation: WindowInsetsAnimation) {
+                    if (animation !== activeImeAnimation) return
+                    applyPanelMotion(panelMotionState.onAnimationEnd())
+                    activeImeAnimation = null
+                }
+            },
+        )
         root.setOnApplyWindowInsetsListener { view, windowInsets ->
             val systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars())
             val imeBottom = windowInsets.getInsets(WindowInsets.Type.ime()).bottom
-            updateShortcutPanelImeVisibility(windowInsets.isVisible(WindowInsets.Type.ime()))
+            applyPanelMotion(
+                panelMotionState.onInsetsApplied(
+                    visible = windowInsets.isVisible(WindowInsets.Type.ime()),
+                    layoutBottom = maxOf(systemBars.bottom, imeBottom),
+                ),
+            )
             view.setPadding(
                 originalLeft + systemBars.left,
                 originalTop + systemBars.top,
@@ -485,16 +580,21 @@ class MainActivity : Activity(), NetworkClient.Listener {
         root.requestApplyInsets()
     }
 
-    private fun updateShortcutPanelImeVisibility(visible: Boolean) {
-        pendingImeHide?.let(mainHandler::removeCallbacks)
-        pendingImeHide = null
+    private fun updateLegacyShortcutPanelImeVisibility(visible: Boolean) {
         if (visible) {
-            shortcutPanel.setImeVisible(true)
+            pendingImeHide?.let(mainHandler::removeCallbacks)
+            pendingImeHide = null
+            legacyImeVisible = true
+            pendingLegacyImeShowRollback?.let(mainHandler::removeCallbacks)
+            pendingLegacyImeShowRollback = null
+            shortcutPanel.setImeVisible(true, animate = false)
             return
         }
+        if (!legacyImeVisible) return
+        legacyImeVisible = false
         val hide = Runnable {
             pendingImeHide = null
-            shortcutPanel.setImeVisible(false)
+            shortcutPanel.setImeVisible(false, animate = false)
         }
         pendingImeHide = hide
         mainHandler.postDelayed(hide, IME_HIDE_DEBOUNCE_MILLIS)
@@ -1279,6 +1379,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
         const val KEY_REPEAT_DELAY_MILLIS = 350L
         const val KEY_REPEAT_INTERVAL_MILLIS = 70L
         const val IME_HIDE_DEBOUNCE_MILLIS = 300L
+        const val LEGACY_IME_SHOW_TIMEOUT_MILLIS = 500L
+        const val LEGACY_IME_VISIBILITY_THRESHOLD_DP = 24
         const val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
         const val STATE_DEFERRED_MODE = "deferred_mode"
         const val STATE_DEFERRED_DRAFT = "deferred_draft"

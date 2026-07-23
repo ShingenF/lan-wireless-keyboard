@@ -572,7 +572,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 ImePanelVisibilityUpdate.SHOW -> shortcutPanel.setImeVisible(
                     visible = true,
                     animate = false,
-                    deferToggleReveal = activeImeAnimation != null,
+                    deferToggleVisibility = activeImeAnimation != null,
                 )
                 ImePanelVisibilityUpdate.HIDE -> shortcutPanel.setImeVisible(false, animate = false)
             }
@@ -586,7 +586,6 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 ImePanelBodyUpdate.PREPARE_FOR_HIDE -> shortcutPanel.prepareForImeHide()
                 ImePanelBodyUpdate.RESTORE_FOR_SHOW -> shortcutPanel.restoreForImeShow()
             }
-            update.toggleRevealProgress?.let(shortcutPanel::setImeRevealProgress)
         }
 
         val nextFrameMotion = NextFrameImeMotionDispatcher(
@@ -620,8 +619,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
                 override fun onEnd(animation: WindowInsetsAnimation) {
                     if (animation !== activeImeAnimation) return
-                    nextFrameMotion.dispatchImmediately(panelMotionState.onAnimationEnd())
                     activeImeAnimation = null
+                    nextFrameMotion.dispatchAfterPendingFrame(panelMotionState.onAnimationEnd())
                 }
             },
         )
@@ -1320,11 +1319,6 @@ class MainActivity : Activity(), NetworkClient.Listener {
         scrollStripView.visibility = if (settings.scrollStripEnabled) View.VISIBLE else View.GONE
         val systemDarkTheme = isSystemDarkTheme()
         val themeColors = settings.themeSettings.resolve(systemDarkTheme)
-        val isDarkSemanticTheme = when (settings.themeSettings.mode) {
-            ThemeMode.FOLLOW_SYSTEM -> systemDarkTheme
-            ThemeMode.LIGHT -> false
-            ThemeMode.DARK -> true
-        }
         currentThemeColors = themeColors
         languageToggleShortcut = settings.languageToggleShortcut
         inputMethodShortcut = settings.inputMethodShortcut
@@ -1334,7 +1328,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         findViewById<View>(R.id.inputContainer).backgroundTintList =
             ColorStateList.valueOf(themeColors.inputBackgroundArgb)
         touchpadView.backgroundTintList = ColorStateList.valueOf(themeColors.touchpadBackgroundArgb)
-        shortcutPanel.applyTheme(themeColors, isDarkSemanticTheme)
+        shortcutPanel.applyTheme(themeColors)
         statusView.setTextColor(themeColors.primaryTextArgb)
         inputView.setTextColor(themeColors.primaryTextArgb)
         inputView.setHintTextColor(themeColors.secondaryTextArgb)

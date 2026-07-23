@@ -14,7 +14,6 @@ class ShortcutButtonStyleTest {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.OFF,
             colors = colors,
-            isDarkSemanticTheme = false,
         )
 
         assertEquals(colors.inputBackgroundArgb, style.fill)
@@ -28,7 +27,6 @@ class ShortcutButtonStyleTest {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.ARMED,
             colors = ThemeColors(),
-            isDarkSemanticTheme = false,
         )
 
         assertEquals(0xFFFFFFFF.toInt(), style.textColor)
@@ -42,7 +40,6 @@ class ShortcutButtonStyleTest {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.ARMED,
             colors = colors,
-            isDarkSemanticTheme = false,
         )
 
         assertEquals(0xFFFFFFFF.toInt(), style.textColor)
@@ -53,7 +50,6 @@ class ShortcutButtonStyleTest {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.ARMED,
             colors = ThemeColors.darkDefaults(),
-            isDarkSemanticTheme = true,
         )
 
         assertEquals(0xFFFFFFFF.toInt(), style.textColor)
@@ -65,12 +61,10 @@ class ShortcutButtonStyleTest {
         val lightStyle = shortcutButtonStyle(
             state = ShortcutModifierState.LATCHED,
             colors = ThemeColors(),
-            isDarkSemanticTheme = false,
         )
         val darkStyle = shortcutButtonStyle(
             state = ShortcutModifierState.LATCHED,
             colors = ThemeColors.darkDefaults(),
-            isDarkSemanticTheme = true,
         )
 
         assertEquals(0xFFFFFFFF.toInt(), lightStyle.textColor)

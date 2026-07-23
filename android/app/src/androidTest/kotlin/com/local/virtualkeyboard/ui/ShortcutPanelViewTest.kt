@@ -41,6 +41,114 @@ class ShortcutPanelViewTest {
     }
 
     @Test
+    fun activeImeTransitionShowsTheWholeArrowInOneFrameWithoutSlidingThroughTheBody() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val panel = ShortcutPanelView(context)
+            panel.selection.tap(ShortcutModifier.CONTROL)
+            panel.setImeVisible(
+                visible = true,
+                animate = false,
+                deferToggleVisibility = true,
+            )
+            val collapseControls = arrayListOf<View>()
+            panel.findViewsWithText(
+                collapseControls,
+                context.getString(R.string.shortcut_panel_collapse),
+                View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION,
+            )
+            val toggle = collapseControls.single()
+
+            assertEquals(0f, toggle.translationY)
+            assertEquals(0f, toggle.alpha)
+            assertEquals(false, toggle.isClickable)
+            assertEquals(
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                toggle.importantForAccessibility,
+            )
+
+            panel.setImeTransitionToggleVisible(true)
+
+            assertEquals(0f, toggle.translationY)
+            assertEquals(1f, toggle.alpha)
+            assertEquals(true, toggle.isClickable)
+            assertEquals(
+                View.IMPORTANT_FOR_ACCESSIBILITY_YES,
+                toggle.importantForAccessibility,
+            )
+        }
+    }
+
+    @Test
+    fun legacyImeRollbackRestoresTheArrowAfterAnEarlyHide() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val panel = ShortcutPanelView(context)
+            panel.selection.tap(ShortcutModifier.CONTROL)
+            panel.setImeVisible(visible = true, animate = false)
+            val collapseControls = arrayListOf<View>()
+            panel.findViewsWithText(
+                collapseControls,
+                context.getString(R.string.shortcut_panel_collapse),
+                View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION,
+            )
+            val toggle = collapseControls.single()
+
+            panel.setImeTransitionToggleVisible(false)
+            assertEquals(0f, toggle.alpha)
+
+            panel.setImeTransitionToggleVisible(true)
+            assertEquals(1f, toggle.alpha)
+        }
+    }
+
+    @Test
+    fun imeStateChangeRejectsAStaleManualPanelAnimationEndAction() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var panel: ShortcutPanelView
+        lateinit var toggle: View
+        var width = 0
+        var height = 0
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            panel = ShortcutPanelView(context)
+            panel.selection.tap(ShortcutModifier.CONTROL)
+            panel.notifySelectionChanged()
+            panel.setImeVisible(visible = true, animate = false)
+            width = (393 * context.resources.displayMetrics.density).toInt()
+            height = (158 * context.resources.displayMetrics.density).toInt()
+            panel.measure(
+                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
+            )
+            panel.layout(0, 0, width, height)
+
+            val collapseControls = arrayListOf<View>()
+            panel.findViewsWithText(
+                collapseControls,
+                context.getString(R.string.shortcut_panel_collapse),
+                View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION,
+            )
+            toggle = collapseControls.single()
+            toggle.performClick()
+            panel.setImeVisible(visible = false, animate = false)
+        }
+
+        Thread.sleep(250)
+
+        instrumentation.runOnMainSync {
+            assertTrue(accentTop(panel, width, height) >= 0)
+            assertEquals(0f, toggle.alpha)
+            assertEquals(false, toggle.isClickable)
+        }
+    }
+
+    @Test
     fun expandedShortcutBodyTracksItsImeEdgeTranslation() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
@@ -77,7 +185,7 @@ class ShortcutPanelViewTest {
         instrumentation.runOnMainSync {
             val context = instrumentation.targetContext
             val panel = ShortcutPanelView(context)
-            panel.applyTheme(ThemeColors(), isDarkSemanticTheme = false)
+            panel.applyTheme(ThemeColors())
             panel.selection.tap(ShortcutModifier.CONTROL)
             panel.notifySelectionChanged()
 
@@ -102,11 +210,11 @@ class ShortcutPanelViewTest {
         instrumentation.runOnMainSync {
             val context = instrumentation.targetContext
             val panel = ShortcutPanelView(context)
-            panel.applyTheme(ThemeColors(), isDarkSemanticTheme = false)
+            panel.applyTheme(ThemeColors())
             panel.selection.tap(ShortcutModifier.CONTROL)
             panel.notifySelectionChanged()
 
-            panel.applyTheme(ThemeColors.darkDefaults(), isDarkSemanticTheme = true)
+            panel.applyTheme(ThemeColors.darkDefaults())
 
             val armedControls = arrayListOf<View>()
             panel.findViewsWithText(

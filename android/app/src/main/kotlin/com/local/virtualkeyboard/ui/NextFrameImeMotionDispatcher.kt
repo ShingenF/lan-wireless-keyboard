@@ -12,9 +12,29 @@ internal class NextFrameImeMotionDispatcher<T : Any>(
 ) {
     private var frameScheduled = false
     private var pendingValue: T? = null
+    private var trailingValue: T? = null
 
     fun dispatchNextFrame(value: T) {
         pendingValue = value
+        scheduleFrameIfNeeded()
+    }
+
+    fun dispatchAfterPendingFrame(value: T) {
+        if (pendingValue != null) {
+            trailingValue = value
+        } else {
+            pendingValue = value
+            scheduleFrameIfNeeded()
+        }
+    }
+
+    fun dispatchImmediately(value: T) {
+        pendingValue = null
+        trailingValue = null
+        apply(value)
+    }
+
+    private fun scheduleFrameIfNeeded() {
         if (frameScheduled) return
         frameScheduled = true
         postOnAnimation {
@@ -22,11 +42,13 @@ internal class NextFrameImeMotionDispatcher<T : Any>(
             val valueToApply = pendingValue
             pendingValue = null
             if (valueToApply != null) apply(valueToApply)
-        }
-    }
 
-    fun dispatchImmediately(value: T) {
-        pendingValue = null
-        apply(value)
+            val valueAfterPending = trailingValue
+            trailingValue = null
+            if (valueAfterPending != null) {
+                pendingValue = valueAfterPending
+                scheduleFrameIfNeeded()
+            }
+        }
     }
 }

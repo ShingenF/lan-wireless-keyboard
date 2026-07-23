@@ -9,6 +9,7 @@ value class HexColor private constructor(val canonical: String) {
         val DEFAULT_BACKGROUND = HexColor("#F2F2F2")
         val DEFAULT_ICON = HexColor("#B4B4B4")
         val DEFAULT_ACCENT = HexColor("#0071E3")
+        val LEGACY_DEFAULT_ACCENT = HexColor("#3372DE")
         val DEFAULT_PRIMARY_TEXT = HexColor("#2F2F32")
         val DEFAULT_SECONDARY_TEXT = HexColor("#8E8E93")
         val DEFAULT_INPUT_BACKGROUND = HexColor("#FFFFFF")

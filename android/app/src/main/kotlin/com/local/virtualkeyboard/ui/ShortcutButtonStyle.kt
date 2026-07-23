@@ -14,8 +14,6 @@ internal data class ShortcutButtonStyle(
 internal fun shortcutButtonStyle(
     state: ShortcutModifierState,
     colors: ThemeColors,
-    @Suppress("UNUSED_PARAMETER")
-    isDarkSemanticTheme: Boolean,
 ): ShortcutButtonStyle {
     val fill = when (state) {
         ShortcutModifierState.OFF -> colors.inputBackgroundArgb

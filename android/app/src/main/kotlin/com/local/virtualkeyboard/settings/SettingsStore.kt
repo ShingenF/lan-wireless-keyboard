@@ -15,6 +15,10 @@ import javax.crypto.spec.GCMParameterSpec
 class SettingsStore(context: Context) {
     private val preferences = context.getSharedPreferences("connection_settings", Context.MODE_PRIVATE)
 
+    init {
+        migrateLegacyAccentDefaults()
+    }
+
     fun load(): ConnectionSettings = ConnectionSettings(
         host = preferences.getString(KEY_HOST, "").orEmpty(),
         port = preferences.getInt(KEY_PORT, 39421),
@@ -117,6 +121,19 @@ class SettingsStore(context: Context) {
 
     fun savePinnedFingerprint(fingerprint: String) {
         encryptSecret(KEY_PINNED_FINGERPRINT, fingerprint.uppercase())
+    }
+
+    private fun migrateLegacyAccentDefaults() {
+        if (preferences.getBoolean(KEY_ACCENT_DEFAULT_MIGRATED, false)) return
+        preferences.edit().apply {
+            listOf(KEY_ACCENT_COLOR, KEY_DARK_ACCENT_COLOR).forEach { key ->
+                val stored = HexColor.parse(preferences.getString(key, "").orEmpty())
+                if (stored == HexColor.LEGACY_DEFAULT_ACCENT) {
+                    putString(key, HexColor.DEFAULT_ACCENT.canonical)
+                }
+            }
+            putBoolean(KEY_ACCENT_DEFAULT_MIGRATED, true)
+        }.apply()
     }
 
     private fun loadHex(preferenceKey: String, fallback: HexColor): HexColor =
@@ -265,6 +282,7 @@ class SettingsStore(context: Context) {
         const val KEY_DARK_SECONDARY_TEXT_COLOR = "dark_secondary_text_color"
         const val KEY_DARK_INPUT_BACKGROUND_COLOR = "dark_input_background_color"
         const val KEY_DARK_TOUCHPAD_BACKGROUND_COLOR = "dark_touchpad_background_color"
+        const val KEY_ACCENT_DEFAULT_MIGRATED = "accent_default_migrated"
         const val KEY_SECONDARY_TEXT_COLOR_MIGRATED = "secondary_text_color_migrated"
         const val KEY_ALIAS = "virtual_keyboard_settings_key"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

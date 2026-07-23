@@ -8,7 +8,7 @@ import org.junit.Test
 
 class ShortcutButtonStyleTest {
     @Test
-    fun `off shortcut uses theme text and outline at weight seven hundred`() {
+    fun `off shortcut uses the same icon color for text and outline at weight six hundred`() {
         val colors = ThemeColors()
 
         val style = shortcutButtonStyle(
@@ -19,12 +19,12 @@ class ShortcutButtonStyleTest {
 
         assertEquals(colors.inputBackgroundArgb, style.fill)
         assertEquals(colors.iconArgb, style.stroke)
-        assertEquals(colors.primaryTextArgb, style.textColor)
-        assertEquals(700, style.fontWeight)
+        assertEquals(colors.iconArgb, style.textColor)
+        assertEquals(600, style.fontWeight)
     }
 
     @Test
-    fun `light armed shortcut uses white text and a heavier weight`() {
+    fun `light armed shortcut uses white text at weight seven hundred`() {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.ARMED,
             colors = ThemeColors(),
@@ -32,7 +32,7 @@ class ShortcutButtonStyleTest {
         )
 
         assertEquals(0xFFFFFFFF.toInt(), style.textColor)
-        assertEquals(800, style.fontWeight)
+        assertEquals(700, style.fontWeight)
     }
 
     @Test
@@ -49,15 +49,15 @@ class ShortcutButtonStyleTest {
     }
 
     @Test
-    fun `dark armed shortcut chooses contrast from its accent`() {
+    fun `dark armed shortcut also uses white text`() {
         val style = shortcutButtonStyle(
             state = ShortcutModifierState.ARMED,
             colors = ThemeColors.darkDefaults(),
             isDarkSemanticTheme = true,
         )
 
-        assertEquals(0xFF000000.toInt(), style.textColor)
-        assertEquals(800, style.fontWeight)
+        assertEquals(0xFFFFFFFF.toInt(), style.textColor)
+        assertEquals(700, style.fontWeight)
     }
 
     @Test
@@ -75,7 +75,7 @@ class ShortcutButtonStyleTest {
 
         assertEquals(0xFFFFFFFF.toInt(), lightStyle.textColor)
         assertEquals(0xFF000000.toInt(), darkStyle.textColor)
-        assertEquals(800, lightStyle.fontWeight)
-        assertEquals(800, darkStyle.fontWeight)
+        assertEquals(700, lightStyle.fontWeight)
+        assertEquals(700, darkStyle.fontWeight)
     }
 }

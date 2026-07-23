@@ -14,6 +14,7 @@ internal data class ShortcutButtonStyle(
 internal fun shortcutButtonStyle(
     state: ShortcutModifierState,
     colors: ThemeColors,
+    @Suppress("UNUSED_PARAMETER")
     isDarkSemanticTheme: Boolean,
 ): ShortcutButtonStyle {
     val fill = when (state) {
@@ -25,11 +26,11 @@ internal fun shortcutButtonStyle(
         fill = fill,
         stroke = if (state == ShortcutModifierState.OFF) colors.iconArgb else null,
         textColor = when {
-            state == ShortcutModifierState.OFF -> colors.primaryTextArgb
-            state == ShortcutModifierState.ARMED && !isDarkSemanticTheme -> WHITE
+            state == ShortcutModifierState.OFF -> colors.iconArgb
+            state == ShortcutModifierState.ARMED -> WHITE
             else -> contrastColor(fill)
         },
-        fontWeight = if (state == ShortcutModifierState.OFF) 700 else 800,
+        fontWeight = if (state == ShortcutModifierState.OFF) 600 else 700,
     )
 }
 

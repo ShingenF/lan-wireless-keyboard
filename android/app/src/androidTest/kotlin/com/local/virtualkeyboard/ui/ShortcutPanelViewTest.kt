@@ -71,7 +71,7 @@ class ShortcutPanelViewTest {
     }
 
     @Test
-    fun lightArmedShortcutRendersWhiteTextAtWeightEightHundred() {
+    fun armedShortcutRendersWhiteTextAtWeightSevenHundred() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
         instrumentation.runOnMainSync {
@@ -90,7 +90,7 @@ class ShortcutPanelViewTest {
             val button = armedControls.single() as TextView
             assertEquals(0xFFFFFFFF.toInt(), button.currentTextColor)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                assertEquals(800, button.typeface.weight)
+                assertEquals(700, button.typeface.weight)
             }
         }
     }
@@ -115,7 +115,7 @@ class ShortcutPanelViewTest {
                 View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION,
             )
             val button = armedControls.single() as TextView
-            assertEquals(0xFF000000.toInt(), button.currentTextColor)
+            assertEquals(0xFFFFFFFF.toInt(), button.currentTextColor)
             assertEquals(
                 setOf(ShortcutModifier.CONTROL),
                 panel.selection.activeModifiers().toSet(),
@@ -154,6 +154,37 @@ class ShortcutPanelViewTest {
 
             assertTrue("The visible shortcut body must cast an upward shadow.", defaultShadowAlpha > 0)
             assertEquals(defaultShadowAlpha, imeShadowAlpha)
+        }
+    }
+
+    @Test
+    fun shortcutBodyShadowWrapsItsRoundedTopCorner() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val density = context.resources.displayMetrics.density
+            val panel = ShortcutPanelView(context)
+            val width = (393 * density).toInt()
+            val height = (158 * density).toInt()
+            panel.measure(
+                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
+            )
+            panel.layout(0, 0, width, height)
+            val bodyTop = height - (110 * density).toInt()
+            val cornerAlpha = renderedPixelAlpha(
+                panel,
+                width,
+                height,
+                x = (2 * density).toInt(),
+                y = bodyTop + (4 * density).toInt(),
+            )
+
+            assertTrue(
+                "The upward shadow must continue around the body's rounded top corner.",
+                cornerAlpha > 0,
+            )
         }
     }
 

@@ -46,6 +46,7 @@ class ShortcutPanelView @JvmOverloads constructor(
     private var isDarkSemanticTheme = false
     private var imeVisible = false
     private var panelExpanded = true
+    private var imeRevealProgress = 0f
     private var selectionChangedListener: () -> Unit = {}
 
     init {
@@ -54,6 +55,8 @@ class ShortcutPanelView @JvmOverloads constructor(
         buildToggle()
         buildBody()
         applyTheme(themeColors, isDarkSemanticTheme = false)
+        commitBodyPosition(expanded = true)
+        setImeRevealProgress(0f)
     }
 
     fun setOnSelectionChangedListener(listener: () -> Unit) {
@@ -90,31 +93,46 @@ class ShortcutPanelView @JvmOverloads constructor(
         bodyClipLayer.translationY = bodyTranslationY
     }
 
+    fun setImeRevealProgress(progress: Float) {
+        imeRevealProgress = progress.coerceIn(0f, 1f)
+        applyImeToggleReveal()
+    }
+
     fun prepareForImeHide(bodyOffsetY: Float = 0f) {
-        settlePanelAnimation()
+        cancelPanelAnimations()
         bodyMotionLayer.translationY = bodyOffsetY
         bodyMotionLayer.visibility = View.VISIBLE
     }
 
     fun restoreForImeShow() {
-        settlePanelAnimation()
+        bodyMotionLayer.animate().cancel()
+        bodyMotionLayer.translationY = if (panelExpanded) 0f else bodyHeight().toFloat()
+        bodyMotionLayer.visibility = if (panelExpanded) View.VISIBLE else View.INVISIBLE
     }
 
     fun setImeTransitionToggleVisible(visible: Boolean) {
-        if (imeVisible) toggle.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+        if (imeVisible && !visible) setImeRevealProgress(0f)
     }
 
-    fun setImeVisible(visible: Boolean, animate: Boolean = true) {
+    fun setImeVisible(
+        visible: Boolean,
+        animate: Boolean = true,
+        deferToggleReveal: Boolean = false,
+    ) {
         if (imeVisible == visible) return
         imeVisible = visible
         if (visible) {
             panelExpanded = selection.activeModifiers().isNotEmpty()
-            toggle.visibility = View.VISIBLE
-            updatePanelPosition(expanded = panelExpanded, animate = animate)
+            if (animate) {
+                updatePanelPosition(expanded = panelExpanded, animate = true)
+            } else {
+                commitBodyPosition(panelExpanded)
+                setImeRevealProgress(if (deferToggleReveal) 0f else 1f)
+            }
         } else {
             panelExpanded = true
-            updatePanelPosition(expanded = true, animate = animate)
-            toggle.visibility = View.INVISIBLE
+            commitBodyPosition(expanded = true)
+            setImeRevealProgress(0f)
         }
     }
 
@@ -134,8 +152,12 @@ class ShortcutPanelView @JvmOverloads constructor(
         )
         bodyMotionLayer.addView(
             bodyShadow,
-            LayoutParams(LayoutParams.MATCH_PARENT, dp(BODY_SHADOW_HEIGHT_DP), Gravity.BOTTOM).apply {
-                bottomMargin = dp(BODY_HEIGHT_DP)
+            LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                dp(BODY_SHADOW_HEIGHT_DP + BODY_CORNER_DP),
+                Gravity.BOTTOM,
+            ).apply {
+                bottomMargin = dp(BODY_HEIGHT_DP - BODY_CORNER_DP)
             },
         )
 
@@ -178,7 +200,7 @@ class ShortcutPanelView @JvmOverloads constructor(
 
         toggle.apply {
             elevation = dp(8).toFloat()
-            visibility = View.INVISIBLE
+            visibility = View.VISIBLE
             isFocusable = false
             isClickable = true
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -324,8 +346,12 @@ class ShortcutPanelView @JvmOverloads constructor(
             button.typeface = Typeface.create(Typeface.DEFAULT, weight, false)
             button.paint.isFakeBoldText = false
         } else {
-            button.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            button.paint.isFakeBoldText = weight > DEFAULT_BUTTON_FONT_WEIGHT
+            button.typeface = if (weight >= ACTIVE_BUTTON_FONT_WEIGHT) {
+                Typeface.create("sans-serif", Typeface.BOLD)
+            } else {
+                Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            }
+            button.paint.isFakeBoldText = false
         }
     }
 
@@ -348,7 +374,7 @@ class ShortcutPanelView @JvmOverloads constructor(
             .setDuration(PANEL_ANIMATION_MILLIS)
             .start()
         toggle.animate()
-            .translationY(if (expanded) -travel else travel)
+            .translationY(if (expanded) 0f else travel)
             .setDuration(PANEL_ANIMATION_MILLIS)
             .withEndAction { commitPanelPosition(expanded) }
             .start()
@@ -371,15 +397,31 @@ class ShortcutPanelView @JvmOverloads constructor(
 
     private fun commitPanelPosition(expanded: Boolean) {
         val travel = bodyHeight()
-        bodyMotionLayer.translationY = if (expanded) 0f else travel.toFloat()
-        bodyMotionLayer.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
-        (toggle.layoutParams as LayoutParams).also { params ->
-            params.topMargin = if (expanded) 0 else travel
-            toggle.layoutParams = params
-        }
-        toggle.translationY = 0f
+        commitBodyPosition(expanded)
+        toggle.translationY = if (expanded) 0f else travel.toFloat()
         toggleIcon.rotation = if (expanded) 180f else 0f
         toggle.isClickable = true
+    }
+
+    private fun commitBodyPosition(expanded: Boolean) {
+        val travel = bodyHeight().toFloat()
+        bodyMotionLayer.translationY = if (expanded) 0f else travel
+        bodyMotionLayer.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
+    }
+
+    private fun applyImeToggleReveal() {
+        val progress = if (imeVisible && panelExpanded) imeRevealProgress else 0f
+        val visibleToggleAmount = when {
+            !imeVisible -> 0f
+            panelExpanded -> progress
+            else -> 1f
+        }
+        toggle.translationY = bodyHeight() * (1f - progress)
+        toggle.elevation = dp(8) * visibleToggleAmount
+        toggleIcon.rotation = 180f * progress
+        toggle.contentDescription = context.getString(
+            if (panelExpanded) R.string.shortcut_panel_collapse else R.string.shortcut_panel_expand,
+        )
     }
 
     private fun roundedBackground(fill: Int, stroke: Int?): GradientDrawable =
@@ -411,7 +453,7 @@ class ShortcutPanelView @JvmOverloads constructor(
         const val BUTTON_HEIGHT_DP = 44
         const val BUTTON_GAP_DP = 10
         const val BUTTON_WEIGHT_SUM = 317f
-        const val DEFAULT_BUTTON_FONT_WEIGHT = 700
+        const val ACTIVE_BUTTON_FONT_WEIGHT = 700
         const val LONG_PRESS_MILLIS = 1_000L
         const val PANEL_ANIMATION_MILLIS = 180L
     }

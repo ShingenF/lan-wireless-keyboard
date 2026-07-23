@@ -66,6 +66,7 @@ import com.local.virtualkeyboard.ui.JoystickDirection
 import com.local.virtualkeyboard.ui.JoystickView
 import com.local.virtualkeyboard.ui.LegacyImePanelMotionAction
 import com.local.virtualkeyboard.ui.LegacyImePanelMotionState
+import com.local.virtualkeyboard.ui.NextFrameImeMotionDispatcher
 import com.local.virtualkeyboard.ui.ScrollStripView
 import com.local.virtualkeyboard.ui.ShortcutPanelView
 import com.local.virtualkeyboard.ui.SystemBarStyle
@@ -568,7 +569,11 @@ class MainActivity : Activity(), NetworkClient.Listener {
             )
             when (update.visibility) {
                 ImePanelVisibilityUpdate.KEEP -> Unit
-                ImePanelVisibilityUpdate.SHOW -> shortcutPanel.setImeVisible(true, animate = false)
+                ImePanelVisibilityUpdate.SHOW -> shortcutPanel.setImeVisible(
+                    visible = true,
+                    animate = false,
+                    deferToggleReveal = activeImeAnimation != null,
+                )
                 ImePanelVisibilityUpdate.HIDE -> shortcutPanel.setImeVisible(false, animate = false)
             }
             when (update.toggleVisibility) {
@@ -581,14 +586,20 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 ImePanelBodyUpdate.PREPARE_FOR_HIDE -> shortcutPanel.prepareForImeHide()
                 ImePanelBodyUpdate.RESTORE_FOR_SHOW -> shortcutPanel.restoreForImeShow()
             }
+            update.toggleRevealProgress?.let(shortcutPanel::setImeRevealProgress)
         }
+
+        val nextFrameMotion = NextFrameImeMotionDispatcher(
+            postOnAnimation = { action -> root.postOnAnimation(action) },
+            apply = ::applyPanelMotion,
+        )
 
         root.setWindowInsetsAnimationCallback(
             object : WindowInsetsAnimation.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 override fun onPrepare(animation: WindowInsetsAnimation) {
                     if (animation.typeMask and WindowInsets.Type.ime() == 0) return
                     activeImeAnimation = animation
-                    applyPanelMotion(panelMotionState.onAnimationPrepare())
+                    nextFrameMotion.dispatchImmediately(panelMotionState.onAnimationPrepare())
                 }
 
                 override fun onProgress(
@@ -598,7 +609,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     if (activeImeAnimation != null) {
                         val systemBottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom
                         val imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom
-                        applyPanelMotion(
+                        nextFrameMotion.dispatchNextFrame(
                             panelMotionState.onAnimationProgress(
                                 maxOf(systemBottom, imeBottom),
                             ),
@@ -609,7 +620,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
                 override fun onEnd(animation: WindowInsetsAnimation) {
                     if (animation !== activeImeAnimation) return
-                    applyPanelMotion(panelMotionState.onAnimationEnd())
+                    nextFrameMotion.dispatchImmediately(panelMotionState.onAnimationEnd())
                     activeImeAnimation = null
                 }
             },
@@ -631,7 +642,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 visible = imeVisible,
                 layoutBottom = maxOf(systemBars.bottom, imeBottom),
             )
-            applyPanelMotion(panelUpdate)
+            nextFrameMotion.dispatchImmediately(panelUpdate)
             view.setPadding(
                 originalLeft + systemBars.left,
                 originalTop + systemBars.top,

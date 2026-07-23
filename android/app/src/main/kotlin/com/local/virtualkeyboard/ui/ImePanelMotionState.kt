@@ -9,6 +9,7 @@ internal data class ImePanelMotionUpdate(
     val visibility: ImePanelVisibilityUpdate,
     val toggleVisibility: ImeToggleVisibilityUpdate = ImeToggleVisibilityUpdate.KEEP,
     val body: ImePanelBodyUpdate = ImePanelBodyUpdate.KEEP,
+    val toggleRevealProgress: Float? = null,
 )
 
 internal enum class ImePanelVisibilityUpdate {
@@ -44,8 +45,10 @@ internal class ImePanelMotionState {
     private var animationStartLayoutBottom = 0
     private var animationInitialToggleTranslationY = 0
     private var animationInitialBodyTranslationY = 0
+    private var animationInitialToggleRevealProgress = 0f
     private var lastToggleTranslationY = 0
     private var lastBodyTranslationY = 0
+    private var lastToggleRevealProgress = 0f
 
     fun onAnimationPrepare(): ImePanelMotionUpdate {
         val reversingRunningAnimation = animationRunning
@@ -56,6 +59,7 @@ internal class ImePanelMotionState {
         animationStartLayoutBottom = currentLayoutBottom
         animationInitialToggleTranslationY = lastToggleTranslationY
         animationInitialBodyTranslationY = lastBodyTranslationY
+        animationInitialToggleRevealProgress = lastToggleRevealProgress
         return ImePanelMotionUpdate(
             toggleTranslationY = lastToggleTranslationY,
             bodyTranslationY = lastBodyTranslationY,
@@ -87,6 +91,7 @@ internal class ImePanelMotionState {
             return motionOnlyUpdate(
                 toggleTranslationY = lastToggleTranslationY,
                 bodyTranslationY = lastBodyTranslationY,
+                toggleRevealProgress = lastToggleRevealProgress,
                 toggleVisibility = if (visible) {
                     ImeToggleVisibilityUpdate.SHOW
                 } else {
@@ -107,9 +112,11 @@ internal class ImePanelMotionState {
         animationInitialBodyTranslationY = 0
         lastToggleTranslationY = 0
         lastBodyTranslationY = 0
+        lastToggleRevealProgress = if (visible) 1f else 0f
         return ImePanelMotionUpdate(
             toggleTranslationY = 0,
             visibility = visibilityFor(visible),
+            toggleRevealProgress = lastToggleRevealProgress,
         )
     }
 
@@ -131,9 +138,16 @@ internal class ImePanelMotionState {
             (animationInitialToggleTranslationY * (1f - panelProgress)).roundToInt()
         lastBodyTranslationY =
             (animationInitialBodyTranslationY * (1f - completed)).roundToInt()
+        lastToggleRevealProgress = if (targetImeVisible) {
+            animationInitialToggleRevealProgress +
+                (1f - animationInitialToggleRevealProgress) * completed
+        } else {
+            animationInitialToggleRevealProgress * (1f - panelProgress)
+        }
         return motionOnlyUpdate(
             toggleTranslationY = lastToggleTranslationY,
             bodyTranslationY = lastBodyTranslationY,
+            toggleRevealProgress = lastToggleRevealProgress,
             toggleVisibility = if (!targetImeVisible && panelProgress >= 1f) {
                 ImeToggleVisibilityUpdate.HIDE
             } else {
@@ -151,6 +165,7 @@ internal class ImePanelMotionState {
         animationInitialBodyTranslationY = 0
         lastToggleTranslationY = 0
         lastBodyTranslationY = 0
+        lastToggleRevealProgress = if (settledImeVisible) 1f else 0f
         return ImePanelMotionUpdate(
             toggleTranslationY = 0,
             visibility = visibilityFor(settledImeVisible),
@@ -159,6 +174,7 @@ internal class ImePanelMotionState {
             } else {
                 ImeToggleVisibilityUpdate.HIDE
             },
+            toggleRevealProgress = lastToggleRevealProgress,
         )
     }
 
@@ -167,12 +183,14 @@ internal class ImePanelMotionState {
         bodyTranslationY: Int = 0,
         toggleVisibility: ImeToggleVisibilityUpdate = ImeToggleVisibilityUpdate.KEEP,
         body: ImePanelBodyUpdate = ImePanelBodyUpdate.KEEP,
+        toggleRevealProgress: Float? = null,
     ) = ImePanelMotionUpdate(
         toggleTranslationY = toggleTranslationY,
         bodyTranslationY = bodyTranslationY,
         visibility = ImePanelVisibilityUpdate.KEEP,
         toggleVisibility = toggleVisibility,
         body = body,
+        toggleRevealProgress = toggleRevealProgress,
     )
 
     private fun visibilityFor(visible: Boolean) =

@@ -8,9 +8,8 @@ import android.view.View
 /**
  * Draws only the body panel's upward shadow.
  *
- * The shadow source sits immediately below this view, so the view's own bounds clip away every
- * other edge. This avoids both platform-dependent elevation changes and a shadow/color band below
- * the panel.
+ * The view spans the blur above the body and the complete top-corner arc inside it. Its lower edge
+ * clips the shadow after the arc, avoiding a shadow/color band below the panel.
  */
 internal class ShortcutPanelTopShadowView(
     context: Context,
@@ -33,7 +32,7 @@ internal class ShortcutPanelTopShadowView(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val radius = dp(cornerRadiusDp)
-        val sourceTop = height.toFloat()
+        val sourceTop = dp(shadowBlurDp)
         paint.setShadowLayer(dp(shadowBlurDp), 0f, 0f, SHADOW_COLOR)
         canvas.drawRoundRect(
             0f,

@@ -12,7 +12,7 @@ class ThemeColorsTest {
 
         assertEquals("#F2F2F2", defaults.background.canonical)
         assertEquals("#B4B4B4", defaults.icon.canonical)
-        assertEquals("#3372DE", defaults.accent.canonical)
+        assertEquals("#0071E3", defaults.accent.canonical)
         assertEquals("#2F2F32", defaults.primaryText.canonical)
         assertEquals("#8E8E93", defaults.secondaryText.canonical)
         assertEquals("#FFFFFF", defaults.inputBackground.canonical)
@@ -25,7 +25,7 @@ class ThemeColorsTest {
 
         assertEquals("#121214", defaults.background.canonical)
         assertEquals("#B8B8C0", defaults.icon.canonical)
-        assertEquals("#3372DE", defaults.accent.canonical)
+        assertEquals("#0071E3", defaults.accent.canonical)
         assertEquals("#F4F4F5", defaults.primaryText.canonical)
         assertEquals("#A1A1AA", defaults.secondaryText.canonical)
         assertEquals("#242428", defaults.inputBackground.canonical)
@@ -65,7 +65,7 @@ class ThemeColorsTest {
             """[light]
                 |background=#F2F2F2
                 |icon=#B4B4B4
-                |accent=#3372DE
+                |accent=#0071E3
                 |primary_text=#2F2F32
                 |secondary_text=#8E8E93
                 |input_background=#FFFFFF
@@ -74,7 +74,7 @@ class ThemeColorsTest {
                 |[dark]
                 |background=#121214
                 |icon=#B8B8C0
-                |accent=#3372DE
+                |accent=#0071E3
                 |primary_text=#F4F4F5
                 |secondary_text=#A1A1AA
                 |input_background=#242428
@@ -102,8 +102,8 @@ class ThemeColorsTest {
 
         val parsed = ThemeFramework.parse(legacy)
 
-        assertEquals("#3372DE", parsed.light.accent.canonical)
-        assertEquals("#3372DE", parsed.dark.accent.canonical)
+        assertEquals("#0071E3", parsed.light.accent.canonical)
+        assertEquals("#0071E3", parsed.dark.accent.canonical)
     }
 
     @Test

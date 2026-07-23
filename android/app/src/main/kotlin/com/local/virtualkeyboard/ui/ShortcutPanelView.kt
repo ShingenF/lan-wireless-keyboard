@@ -98,9 +98,9 @@ class ShortcutPanelView @JvmOverloads constructor(
         if (imeVisible == visible) return
         imeVisible = visible
         if (visible) {
-            panelExpanded = false
+            panelExpanded = selection.activeModifiers().isNotEmpty()
             toggle.visibility = View.VISIBLE
-            updatePanelPosition(expanded = false, animate = animate)
+            updatePanelPosition(expanded = panelExpanded, animate = animate)
         } else {
             panelExpanded = true
             updatePanelPosition(expanded = true, animate = animate)
@@ -121,10 +121,10 @@ class ShortcutPanelView @JvmOverloads constructor(
         body.apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
-                dp(BODY_HORIZONTAL_PADDING_DP),
-                dp(BODY_VERTICAL_PADDING_DP),
-                dp(BODY_HORIZONTAL_PADDING_DP),
-                dp(BODY_VERTICAL_PADDING_DP),
+                dp(BODY_PADDING_DP),
+                dp(BODY_PADDING_DP),
+                dp(BODY_PADDING_DP),
+                dp(BODY_PADDING_DP),
             )
         }
         bodyClipLayer.addView(
@@ -316,6 +316,7 @@ class ShortcutPanelView @JvmOverloads constructor(
             return
         }
 
+        if (expanded) updatePanelLayering(expanded = true)
         val travel = bodyHeight().toFloat()
         body.visibility = View.VISIBLE
         toggle.isClickable = false
@@ -356,6 +357,17 @@ class ShortcutPanelView @JvmOverloads constructor(
         toggle.translationY = 0f
         toggleIcon.rotation = if (expanded) 180f else 0f
         toggle.isClickable = true
+        updatePanelLayering(expanded)
+    }
+
+    private fun updatePanelLayering(expanded: Boolean) {
+        if (expanded) {
+            body.elevation = if (imeVisible) dp(BODY_ELEVATION_DP).toFloat() else 0f
+            bodyClipLayer.bringToFront()
+        } else {
+            body.elevation = 0f
+            toggleMotionLayer.bringToFront()
+        }
     }
 
     private fun roundedBackground(fill: Int, stroke: Int?): GradientDrawable =
@@ -383,8 +395,8 @@ class ShortcutPanelView @JvmOverloads constructor(
 
     private companion object {
         const val BODY_HEIGHT_DP = 110
-        const val BODY_HORIZONTAL_PADDING_DP = 24
-        const val BODY_VERTICAL_PADDING_DP = 33
+        const val BODY_PADDING_DP = 33
+        const val BODY_ELEVATION_DP = 4
         const val BODY_CORNER_DP = 22
         const val TOGGLE_CORNER_DP = 22
         const val BUTTON_HEIGHT_DP = 44

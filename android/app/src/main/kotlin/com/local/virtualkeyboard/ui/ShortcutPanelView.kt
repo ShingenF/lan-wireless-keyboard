@@ -239,7 +239,7 @@ class ShortcutPanelView @JvmOverloads constructor(
             toggleShadow,
             LayoutParams(
                 dp(TOGGLE_WIDTH_DP + TOGGLE_SHADOW_OUTSET_DP * 2),
-                dp(TOGGLE_SHADOW_OUTSET_DP + TOGGLE_CORNER_DP),
+                dp(TOGGLE_SHADOW_OUTSET_DP + TOGGLE_HEIGHT_DP),
                 Gravity.TOP or Gravity.START,
             ).apply {
                 topMargin = -dp(TOGGLE_SHADOW_OUTSET_DP)

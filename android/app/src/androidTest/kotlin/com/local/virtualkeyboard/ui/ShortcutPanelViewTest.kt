@@ -186,7 +186,7 @@ class ShortcutPanelViewTest {
     }
 
     @Test
-    fun arrowShadowExtendsBeyondBothLabelEdges() {
+    fun arrowShadowExtendsBeyondBothEdgesForTheFullLabelHeight() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
         instrumentation.runOnMainSync {
@@ -198,23 +198,22 @@ class ShortcutPanelViewTest {
             panel.setImeVisible(visible = true, animate = false)
             measureAndLayout(panel, width, height)
             val toggleTop = (110 * density).toInt() + 1
-            val sampleY = toggleTop + (16 * density).toInt()
             val toggleLeft = (24 * density).toInt()
             val toggleRight = toggleLeft + (64 * density).toInt()
-            val leftShadowAlpha = renderedPixelAlpha(
-                panel,
-                width,
-                height,
-                x = toggleLeft - (2 * density).toInt(),
-                y = sampleY,
-            )
-            val rightShadowAlpha = renderedPixelAlpha(
-                panel,
-                width,
-                height,
-                x = toggleRight + (2 * density).toInt(),
-                y = sampleY,
-            )
+            val verticalSamplesDp = 16..44 step 4
+            val horizontalOffsetsDp = listOf(2, 4)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            panel.draw(Canvas(bitmap))
+            val sideShadowAlphas = verticalSamplesDp.flatMap { yDp ->
+                horizontalOffsetsDp.flatMap { offsetDp ->
+                    val y = toggleTop + (yDp * density).toInt()
+                    val offset = (offsetDp * density).toInt()
+                    listOf(
+                        Color.alpha(bitmap.getPixel(toggleLeft - offset, y)),
+                        Color.alpha(bitmap.getPixel(toggleRight + offset, y)),
+                    )
+                }
+            }
             val toggle = findToggle(
                 panel,
                 context.getString(R.string.shortcut_panel_expand),
@@ -222,8 +221,7 @@ class ShortcutPanelViewTest {
             val shadow = (toggle as ViewGroup).getChildAt(0)
             val reservedOutset = (24 * density).toInt()
 
-            assertTrue(leftShadowAlpha > 0)
-            assertTrue(rightShadowAlpha > 0)
+            assertTrue(sideShadowAlphas.all { it > 0 })
             assertTrue(shadow is ShortcutPanelTopShadowView)
             assertTrue(shadow.left <= -reservedOutset)
             assertTrue(shadow.right >= toggle.width + reservedOutset)

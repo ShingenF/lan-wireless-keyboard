@@ -8,9 +8,10 @@ import android.view.View
 /**
  * Draws only a panel surface's upward shadow.
  *
- * The view spans the blur above the surface and the complete top-corner arc inside it. Its lower
- * edge clips the shadow after the arc, avoiding a shadow/color band below the panel. A narrow
- * surface can reserve a horizontal outset so its side blur is not clipped by the shadow canvas.
+ * The view spans the blur above the surface and as much of its vertical sides as the caller wants
+ * visible. Its lower edge clips the remaining shadow, avoiding a shadow/color band below the
+ * panel. A narrow surface can reserve a horizontal outset so its side blur is not clipped by the
+ * shadow canvas.
  */
 internal class ShortcutPanelTopShadowView(
     context: Context,
@@ -42,7 +43,7 @@ internal class ShortcutPanelTopShadowView(
             horizontalOutset,
             sourceTop,
             width - horizontalOutset,
-            sourceTop + radius * 2f,
+            height + radius,
             radius,
             radius,
             paint,

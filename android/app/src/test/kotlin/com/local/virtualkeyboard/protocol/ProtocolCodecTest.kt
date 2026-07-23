@@ -1,6 +1,7 @@
 package com.local.virtualkeyboard.protocol
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ProtocolCodecTest {
@@ -128,6 +129,48 @@ class ProtocolCodecTest {
                 timestamp = 93,
             ),
         )
+    }
+
+    @Test
+    fun `shortcut chord uses canonical modifier order and a physical key name`() {
+        assertEquals(
+            "{\"version\":1,\"type\":\"shortcutChord\",\"seq\":15,\"timestamp\":94,\"modifiers\":[\"shift\",\"control\"],\"key\":\"c\"}",
+            ProtocolCodec.encodeCommand(
+                OutgoingCommand.ShortcutChord(
+                    modifiers = listOf(ShortcutModifier.CONTROL, ShortcutModifier.SHIFT),
+                    key = ShortcutKey.Character('c'),
+                ),
+                seq = 15,
+                timestamp = 94,
+            ),
+        )
+        assertEquals(
+            "{\"version\":1,\"type\":\"shortcutChord\",\"seq\":16,\"timestamp\":95,\"modifiers\":[\"meta\"],\"key\":\"backspace\"}",
+            ProtocolCodec.encodeCommand(
+                OutgoingCommand.ShortcutChord(
+                    modifiers = listOf(ShortcutModifier.META),
+                    key = ShortcutKey.Backspace,
+                ),
+                seq = 16,
+                timestamp = 95,
+            ),
+        )
+    }
+
+    @Test
+    fun `shortcut chord rejects empty or duplicate modifiers and unsupported characters`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OutgoingCommand.ShortcutChord(emptyList(), ShortcutKey.Space)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            OutgoingCommand.ShortcutChord(
+                listOf(ShortcutModifier.ALT, ShortcutModifier.ALT),
+                ShortcutKey.Enter,
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ShortcutKey.Character('中')
+        }
     }
 
     @Test

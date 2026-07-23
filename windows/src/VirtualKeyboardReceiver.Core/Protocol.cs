@@ -100,6 +100,12 @@ public static class ProtocolParser
                     () => new KeyStateCommand(seq, timestamp, ParseGameKey(RequiredString(root, "key")), ParseGameAction(RequiredString(root, "action")))),
                 "systemShortcut" => Build(root, ["version", "type", "seq", "timestamp", "shortcut"],
                     () => new SystemShortcutCommand(seq, timestamp, ParseSystemShortcut(RequiredString(root, "shortcut")))),
+                "shortcutChord" => Build(root, ["version", "type", "seq", "timestamp", "modifiers", "key"],
+                    () => new ShortcutChordCommand(
+                        seq,
+                        timestamp,
+                        ParseShortcutModifiers(root),
+                        ParseShortcutKey(RequiredString(root, "key")))),
                 "pointerMove" => Build(root, ["version", "type", "seq", "timestamp", "dx", "dy"],
                     () => new PointerMoveCommand(seq, timestamp, RequiredInt32(root, "dx"), RequiredInt32(root, "dy"))),
                 "pointerButton" => Build(root, ["version", "type", "seq", "timestamp", "button", "action"],
@@ -163,6 +169,38 @@ public static class ProtocolParser
         "controlShift" => SystemShortcut.ControlShift,
         "altShift" => SystemShortcut.AltShift,
         _ => throw new ProtocolException("Invalid system shortcut.")
+    };
+    private static IReadOnlyList<ShortcutModifier> ParseShortcutModifiers(JsonElement root)
+    {
+        if (!root.TryGetProperty("modifiers", out var value) || value.ValueKind != JsonValueKind.Array)
+            throw new ProtocolException("modifiers must be an array.");
+        var modifiers = new List<ShortcutModifier>();
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+                throw new ProtocolException("Shortcut modifiers must be strings.");
+            var modifier = item.GetString() switch
+            {
+                "shift" => ShortcutModifier.Shift,
+                "control" => ShortcutModifier.Control,
+                "alt" => ShortcutModifier.Alt,
+                "meta" => ShortcutModifier.Meta,
+                _ => throw new ProtocolException("Invalid shortcut modifier.")
+            };
+            if (modifiers.Contains(modifier)) throw new ProtocolException("Shortcut modifiers must be unique.");
+            modifiers.Add(modifier);
+        }
+        if (modifiers.Count == 0) throw new ProtocolException("Shortcut chord requires a modifier.");
+        return modifiers;
+    }
+    private static ShortcutKey ParseShortcutKey(string value) => value switch
+    {
+        "space" => new ShortcutKey.Special(ShortcutSpecialKey.Space),
+        "enter" => new ShortcutKey.Special(ShortcutSpecialKey.Enter),
+        "backspace" => new ShortcutKey.Special(ShortcutSpecialKey.Backspace),
+        _ when value.Length == 1 && value[0] is >= (char)0x21 and <= (char)0x7E =>
+            new ShortcutKey.Character(value[0]),
+        _ => throw new ProtocolException("Invalid shortcut key.")
     };
     private static int NonNegativeInt32(JsonElement root, string name) { var n = RequiredInt32(root, name); return n >= 0 ? n : throw new ProtocolException(name + " must not be negative."); }
     private static int ReplaceTailDeleteCount(JsonElement root)

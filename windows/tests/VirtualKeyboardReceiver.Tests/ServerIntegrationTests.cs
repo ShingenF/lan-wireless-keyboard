@@ -363,6 +363,7 @@ public sealed class ServerIntegrationTests
         public void SetPointerButton(MouseButton button, ButtonAction action) => Events.Add($"button:{button},{action}");
         public void SetKeyState(GameKey key, ButtonAction action) => Events.Add($"game:{key},{action}");
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) => Events.Add("wheel:" + delta);
     }
 
@@ -377,6 +378,7 @@ public sealed class ServerIntegrationTests
         }
         public void SetKeyState(GameKey key, ButtonAction action) { }
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) { }
     }
 
@@ -397,6 +399,7 @@ public sealed class ServerIntegrationTests
         public void SetPointerButton(MouseButton button, ButtonAction action) { }
         public void SetKeyState(GameKey key, ButtonAction action) { }
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) { }
     }
 

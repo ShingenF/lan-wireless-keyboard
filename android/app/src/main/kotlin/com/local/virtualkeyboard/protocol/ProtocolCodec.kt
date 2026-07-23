@@ -16,6 +16,13 @@ object ProtocolCodec {
                     ",\"key\":\"${command.key.wireName}\",\"action\":\"${command.action.wireName}\""
             is OutgoingCommand.SystemShortcutPress ->
                 "systemShortcut" to ",\"shortcut\":\"${command.shortcut.wireName}\""
+            is OutgoingCommand.ShortcutChord -> {
+                val modifiers = ShortcutModifier.entries
+                    .filter(command.modifiers::contains)
+                    .joinToString(",") { "\"${it.wireName}\"" }
+                "shortcutChord" to
+                    ",\"modifiers\":[$modifiers],\"key\":\"${escape(command.key.wireName)}\""
+            }
             is OutgoingCommand.PointerMove ->
                 "pointerMove" to ",\"dx\":${command.dx},\"dy\":${command.dy}"
             is OutgoingCommand.PointerButton ->

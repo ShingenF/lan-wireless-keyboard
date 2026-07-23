@@ -10,6 +10,7 @@ public interface IInputInjector
     void PressKey(ReceiverKey key);
     void SetKeyState(GameKey key, ButtonAction action);
     void PressSystemShortcut(SystemShortcut shortcut);
+    void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key);
     void MovePointer(int dx, int dy);
     void SetPointerButton(MouseButton button, ButtonAction action);
     void Wheel(int delta);
@@ -35,6 +36,7 @@ public sealed class CommandDispatcher(IInputInjector injector)
             case KeyPressCommand c: injector.PressKey(c.Key); break;
             case KeyStateCommand c: DispatchKeyState(c); break;
             case SystemShortcutCommand c: injector.PressSystemShortcut(c.Shortcut); break;
+            case ShortcutChordCommand c: injector.PressShortcutChord(c.Modifiers, c.Key); break;
             case PointerMoveCommand c: injector.MovePointer(c.Dx, c.Dy); break;
             case PointerButtonCommand c:
                 injector.SetPointerButton(c.Button, c.Action);
@@ -171,27 +173,11 @@ public sealed class Win32InputInjector(IWin32SendInput? sender = null, ITextInpu
     }
     private void SendPhysicalKey(PhysicalKeyStroke stroke)
     {
-        var inputs = new List<INPUT>();
         var modifiers = new List<(ushort ScanCode, bool Extended)>();
         if (stroke.Modifiers.HasFlag(PhysicalKeyModifiers.Shift)) modifiers.Add((0x2A, false));
         if (stroke.Modifiers.HasFlag(PhysicalKeyModifiers.Control)) modifiers.Add((0x1D, false));
         if (stroke.Modifiers.HasFlag(PhysicalKeyModifiers.Alt)) modifiers.Add((0x38, stroke.Modifiers.HasFlag(PhysicalKeyModifiers.Control)));
-        foreach (var modifier in modifiers) inputs.Add(INPUT.Keyboard(0, modifier.ScanCode, 0x0008 | (modifier.Extended ? 0x0001u : 0u)));
-        var flags = 0x0008u | (stroke.Extended ? 0x0001u : 0u);
-        inputs.Add(INPUT.Keyboard(0, stroke.ScanCode, flags));
-        inputs.Add(INPUT.Keyboard(0, stroke.ScanCode, flags | 0x0002));
-        for (var i = modifiers.Count - 1; i >= 0; i--)
-        {
-            var modifier = modifiers[i];
-            inputs.Add(INPUT.Keyboard(0, modifier.ScanCode, 0x0008 | (modifier.Extended ? 0x0001u : 0u) | 0x0002));
-        }
-        var compensation = new List<INPUT> { INPUT.Keyboard(0, stroke.ScanCode, flags | 0x0002) };
-        for (var i = modifiers.Count - 1; i >= 0; i--)
-        {
-            var modifier = modifiers[i];
-            compensation.Add(INPUT.Keyboard(0, modifier.ScanCode, 0x0008 | (modifier.Extended ? 0x0001u : 0u) | 0x0002));
-        }
-        SendInputSequence(inputs.ToArray(), compensation.ToArray());
+        SendPhysicalStroke(stroke, modifiers);
     }
     public void PressKey(ReceiverKey key)
     {
@@ -220,6 +206,111 @@ public sealed class Win32InputInjector(IWin32SendInput? sender = null, ITextInpu
             _ => throw new ArgumentOutOfRangeException(nameof(shortcut))
         };
         SendInputSequence(sequence.Inputs, sequence.Compensation);
+    }
+    public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key)
+    {
+        if (modifiers.Count == 0 || modifiers.Distinct().Count() != modifiers.Count)
+            throw new ArgumentException("Shortcut modifiers must be non-empty and unique.", nameof(modifiers));
+
+        var stroke = key switch
+        {
+            ShortcutKey.Character character when _physicalKeyMapper.TryMap(character.Value, out var mapped) => mapped,
+            ShortcutKey.Character character when TryMapUsAscii(character.Value, out var fallback) => fallback,
+            ShortcutKey.Character => throw new ArgumentException("Shortcut character is not mappable.", nameof(key)),
+            ShortcutKey.Special { Value: ShortcutSpecialKey.Space } =>
+                new PhysicalKeyStroke(0, 0x39, PhysicalKeyModifiers.None, false),
+            ShortcutKey.Special { Value: ShortcutSpecialKey.Enter } =>
+                new PhysicalKeyStroke(0, 0x1C, PhysicalKeyModifiers.None, false),
+            ShortcutKey.Special { Value: ShortcutSpecialKey.Backspace } =>
+                new PhysicalKeyStroke(0, 0x0E, PhysicalKeyModifiers.None, false),
+            _ => throw new ArgumentOutOfRangeException(nameof(key))
+        };
+
+        var requested = modifiers.ToHashSet();
+        var intrinsic = stroke.Modifiers;
+        var altGr = intrinsic.HasFlag(PhysicalKeyModifiers.Control) && intrinsic.HasFlag(PhysicalKeyModifiers.Alt);
+        var modifierKeys = new List<(ushort ScanCode, bool Extended)>();
+        if (requested.Contains(ShortcutModifier.Meta)) modifierKeys.Add((0x5B, true));
+        if (requested.Contains(ShortcutModifier.Control) || intrinsic.HasFlag(PhysicalKeyModifiers.Control))
+            modifierKeys.Add((0x1D, false));
+        if (requested.Contains(ShortcutModifier.Alt) || intrinsic.HasFlag(PhysicalKeyModifiers.Alt))
+            modifierKeys.Add((0x38, altGr));
+        if (requested.Contains(ShortcutModifier.Shift) || intrinsic.HasFlag(PhysicalKeyModifiers.Shift))
+            modifierKeys.Add((0x2A, false));
+
+        SendPhysicalStroke(stroke, modifierKeys);
+    }
+    private void SendPhysicalStroke(
+        PhysicalKeyStroke stroke,
+        IReadOnlyList<(ushort ScanCode, bool Extended)> modifierKeys)
+    {
+        const uint scan = 0x0008;
+        const uint extendedScan = 0x0009;
+        const uint keyUp = 0x0002;
+        var inputs = new List<INPUT>();
+        foreach (var modifier in modifierKeys)
+            inputs.Add(INPUT.Keyboard(0, modifier.ScanCode, modifier.Extended ? extendedScan : scan));
+        var keyFlags = scan | (stroke.Extended ? 0x0001u : 0u);
+        inputs.Add(INPUT.Keyboard(0, stroke.ScanCode, keyFlags));
+        inputs.Add(INPUT.Keyboard(0, stroke.ScanCode, keyFlags | keyUp));
+        for (var index = modifierKeys.Count - 1; index >= 0; index--)
+        {
+            var modifier = modifierKeys[index];
+            inputs.Add(INPUT.Keyboard(0, modifier.ScanCode, (modifier.Extended ? extendedScan : scan) | keyUp));
+        }
+
+        var compensation = new List<INPUT> { INPUT.Keyboard(0, stroke.ScanCode, keyFlags | keyUp) };
+        for (var index = modifierKeys.Count - 1; index >= 0; index--)
+        {
+            var modifier = modifierKeys[index];
+            compensation.Add(INPUT.Keyboard(0, modifier.ScanCode, (modifier.Extended ? extendedScan : scan) | keyUp));
+        }
+        SendInputSequence(inputs.ToArray(), compensation.ToArray());
+    }
+    private static bool TryMapUsAscii(char character, out PhysicalKeyStroke stroke)
+    {
+        stroke = default;
+        ushort scanCode;
+        var modifiers = PhysicalKeyModifiers.None;
+        if (character is >= 'a' and <= 'z' or >= 'A' and <= 'Z')
+        {
+            scanCode = char.ToUpperInvariant(character) switch
+            {
+                'A' => 0x1E, 'B' => 0x30, 'C' => 0x2E, 'D' => 0x20, 'E' => 0x12,
+                'F' => 0x21, 'G' => 0x22, 'H' => 0x23, 'I' => 0x17, 'J' => 0x24,
+                'K' => 0x25, 'L' => 0x26, 'M' => 0x32, 'N' => 0x31, 'O' => 0x18,
+                'P' => 0x19, 'Q' => 0x10, 'R' => 0x13, 'S' => 0x1F, 'T' => 0x14,
+                'U' => 0x16, 'V' => 0x2F, 'W' => 0x11, 'X' => 0x2D, 'Y' => 0x15,
+                'Z' => 0x2C, _ => 0
+            };
+            if (char.IsUpper(character)) modifiers = PhysicalKeyModifiers.Shift;
+        }
+        else
+        {
+            (ushort ScanCode, bool Shifted) mapping = character switch
+            {
+                '1' => (0x02, false), '2' => (0x03, false), '3' => (0x04, false),
+                '4' => (0x05, false), '5' => (0x06, false), '6' => (0x07, false),
+                '7' => (0x08, false), '8' => (0x09, false), '9' => (0x0A, false),
+                '0' => (0x0B, false), '-' => (0x0C, false), '=' => (0x0D, false),
+                '[' => (0x1A, false), ']' => (0x1B, false), '\\' => (0x2B, false),
+                ';' => (0x27, false), '\'' => (0x28, false), '`' => (0x29, false),
+                ',' => (0x33, false), '.' => (0x34, false), '/' => (0x35, false),
+                '!' => (0x02, true), '@' => (0x03, true), '#' => (0x04, true),
+                '$' => (0x05, true), '%' => (0x06, true), '^' => (0x07, true),
+                '&' => (0x08, true), '*' => (0x09, true), '(' => (0x0A, true),
+                ')' => (0x0B, true), '_' => (0x0C, true), '+' => (0x0D, true),
+                '{' => (0x1A, true), '}' => (0x1B, true), '|' => (0x2B, true),
+                ':' => (0x27, true), '"' => (0x28, true), '~' => (0x29, true),
+                '<' => (0x33, true), '>' => (0x34, true), '?' => (0x35, true),
+                _ => (0, false)
+            };
+            scanCode = mapping.ScanCode;
+            if (mapping.Shifted) modifiers = PhysicalKeyModifiers.Shift;
+        }
+        if (scanCode == 0) return false;
+        stroke = new PhysicalKeyStroke(0, scanCode, modifiers, false);
+        return true;
     }
     private void SendInputSequence(INPUT[] inputs, INPUT[] compensation)
     {

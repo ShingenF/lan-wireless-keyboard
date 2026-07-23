@@ -1,6 +1,7 @@
 package com.local.virtualkeyboard.input
 
 import android.content.Context
+import android.os.SystemClock
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Spanned
@@ -14,14 +15,23 @@ import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import com.local.virtualkeyboard.protocol.OutgoingCommand
+import com.local.virtualkeyboard.protocol.ShortcutKey
 
 class RemoteInputEditText @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : EditText(context, attrs) {
     private var commandSession = InputCommandSession { _, _ -> false }
+    private var shortcutInputRouter: ShortcutInputRouter? = null
+    private var shortcutDuplicateGuard: ShortcutDuplicateGuard? = null
+    private var currentShortcutComposition: ShortcutCompositionCoordinator? = null
+    private var onInvalidShortcutInput: () -> Unit = {}
     private var deferredDraft = ""
     private var pendingDeferredDraft: String? = null
+    private var shortcutInputActive = false
+    private val shortcutNoticeThrottle = ShortcutNoticeThrottle(INVALID_SHORTCUT_NOTICE_INTERVAL_MILLIS)
+    private val consumedShortcutKeyCodes = mutableSetOf<Int>()
+    private var restartInputPosted = false
     private val pendingEditFilter = InputFilter { _, _, _, destination: Spanned, start, end ->
         destination.subSequence(start, end)
     }
@@ -30,16 +40,54 @@ class RemoteInputEditText @JvmOverloads constructor(
         commandSession = InputCommandSession(commandSink)
     }
 
+    fun configureShortcutInput(
+        router: ShortcutInputRouter,
+        onInvalidInput: () -> Unit,
+    ) {
+        shortcutInputRouter = router
+        shortcutDuplicateGuard = ShortcutDuplicateGuard(router)
+        shortcutInputActive = router.hasActiveModifiers
+        onInvalidShortcutInput = onInvalidInput
+    }
+
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         val target = super.onCreateInputConnection(outAttrs) ?: return null
+        val shortcutComposition = shortcutInputRouter?.let { router ->
+            ShortcutCompositionCoordinator(router, requireNotNull(shortcutDuplicateGuard))
+        }
+        currentShortcutComposition = shortcutComposition
         return object : InputConnectionWrapper(target, false) {
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                commandSession.onCompositionChanged(text?.toString().orEmpty())
+                val composingText = text?.toString().orEmpty()
+                when (shortcutComposition?.setComposingText(composingText)) {
+                    ShortcutInputResult.HANDLED -> return true
+                    ShortcutInputResult.INVALID -> {
+                        shortcutDuplicateGuard?.clear()
+                        showInvalidShortcutNotice()
+                        resetShortcutInputConnection()
+                        return true
+                    }
+                    ShortcutInputResult.NOT_HANDLED, null -> Unit
+                }
+                commandSession.onCompositionChanged(composingText)
                 return super.setComposingText(text, newCursorPosition)
             }
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val committedText = text?.toString().orEmpty()
+                when (shortcutComposition?.commitText(committedText)) {
+                    ShortcutInputResult.HANDLED -> {
+                        resetShortcutInputConnection()
+                        return true
+                    }
+                    ShortcutInputResult.INVALID -> {
+                        shortcutDuplicateGuard?.clear()
+                        showInvalidShortcutNotice()
+                        resetShortcutInputConnection()
+                        return true
+                    }
+                    ShortcutInputResult.NOT_HANDLED, null -> Unit
+                }
                 if (consumeEmptyDeferredControlCommit(committedText)) return true
                 commandSession.onCommit(committedText)
                 val committed = super.commitText(text, newCursorPosition)
@@ -48,6 +96,18 @@ class RemoteInputEditText @JvmOverloads constructor(
             }
 
             override fun finishComposingText(): Boolean {
+                when (shortcutComposition?.finishComposingText()) {
+                    ShortcutInputResult.HANDLED -> {
+                        resetShortcutInputConnection()
+                        return true
+                    }
+                    ShortcutInputResult.INVALID -> {
+                        showInvalidShortcutNotice()
+                        resetShortcutInputConnection()
+                        return true
+                    }
+                    ShortcutInputResult.NOT_HANDLED, null -> Unit
+                }
                 val finished = super.finishComposingText()
                 commandSession.onCompositionFinished()
                 post { clearCommittedTextIfCompositionEnded() }
@@ -55,6 +115,10 @@ class RemoteInputEditText @JvmOverloads constructor(
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                if (
+                    beforeLength > 0 &&
+                    consumeShortcutKey(ShortcutKey.Backspace, shortcutComposition)
+                ) return true
                 if (beforeLength > 0 && canRouteEmptyControl(EmptyInputControl.BACKSPACE)) {
                     repeat(beforeLength.coerceAtMost(MAX_REMOTE_BACKSPACES)) {
                         routeEmptyControl(EmptyInputControl.BACKSPACE)
@@ -65,6 +129,10 @@ class RemoteInputEditText @JvmOverloads constructor(
             }
 
             override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+                if (
+                    beforeLength > 0 &&
+                    consumeShortcutKey(ShortcutKey.Backspace, shortcutComposition)
+                ) return true
                 if (beforeLength > 0 && canRouteEmptyControl(EmptyInputControl.BACKSPACE)) {
                     repeat(beforeLength.coerceAtMost(MAX_REMOTE_BACKSPACES)) {
                         routeEmptyControl(EmptyInputControl.BACKSPACE)
@@ -75,6 +143,7 @@ class RemoteInputEditText @JvmOverloads constructor(
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
+                if (consumeShortcutKeyEvent(event, shortcutComposition)) return true
                 val emptyControl = EmptyInputControl.fromKeyCode(event.keyCode)
                 if (emptyControl != null && canRouteEmptyControl(emptyControl)) {
                     if (event.action == KeyEvent.ACTION_DOWN) routeEmptyControl(emptyControl)
@@ -88,6 +157,7 @@ class RemoteInputEditText @JvmOverloads constructor(
             }
 
             override fun performEditorAction(editorAction: Int): Boolean {
+                if (consumeShortcutKey(ShortcutKey.Enter, shortcutComposition)) return true
                 handleEnter()
                 return true
             }
@@ -95,6 +165,7 @@ class RemoteInputEditText @JvmOverloads constructor(
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (consumeShortcutKeyEvent(event, currentShortcutComposition)) return true
         val emptyControl = EmptyInputControl.fromKeyCode(keyCode)
         if (
             commandSession.isDeferredMode &&
@@ -108,7 +179,9 @@ class RemoteInputEditText @JvmOverloads constructor(
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
-        if (
+        if (consumeShortcutKeyEvent(event, currentShortcutComposition)) {
+            true
+        } else if (
             commandSession.isDeferredMode &&
             EmptyInputControl.fromKeyCode(keyCode)?.let(::canRouteEmptyControl) == true
         ) {
@@ -118,6 +191,7 @@ class RemoteInputEditText @JvmOverloads constructor(
         }
 
     fun handleEditorAction(): Boolean {
+        if (consumeShortcutKey(ShortcutKey.Enter, currentShortcutComposition)) return true
         if (commandSession.isDeferredMode && !isEmptyWithoutComposition()) return false
         handleEnter()
         return true
@@ -164,6 +238,23 @@ class RemoteInputEditText @JvmOverloads constructor(
         setSelection(length())
     }
 
+    fun refreshShortcutInputConnection() {
+        currentShortcutComposition?.cancelPendingComposition()
+        shortcutDuplicateGuard?.clear()
+        val active = shortcutInputRouter?.hasActiveModifiers == true
+        if (active != shortcutInputActive) {
+            shortcutInputActive = active
+            configureInputMode(commandSession.isDeferredMode)
+        }
+        resetShortcutInputConnection()
+    }
+
+    private fun resetShortcutInputConnection() {
+        text?.let(BaseInputConnection::removeComposingSpans)
+        commandSession.onCompositionFinished()
+        restartInput()
+    }
+
     private fun handleEnter() {
         if (commandSession.isDeferredMode) {
             if (canRouteEmptyControl(EmptyInputControl.ENTER)) {
@@ -185,8 +276,13 @@ class RemoteInputEditText @JvmOverloads constructor(
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
         inputType =
             InputType.TYPE_CLASS_TEXT or
-                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
+                if (shortcutInputActive) {
+                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                } else {
+                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                        InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                } or
                 if (deferred) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0
         imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or
             if (deferred) EditorInfo.IME_FLAG_NO_ENTER_ACTION else 0
@@ -202,10 +298,61 @@ class RemoteInputEditText @JvmOverloads constructor(
     }
 
     private fun restartInput() {
+        if (restartInputPosted) return
+        restartInputPosted = true
         post {
+            restartInputPosted = false
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .restartInput(this)
         }
+    }
+
+    private fun consumeShortcutKey(
+        key: ShortcutKey,
+        shortcutComposition: ShortcutCompositionCoordinator?,
+    ): Boolean {
+        val result = shortcutInputRouter?.handleKey(key) ?: ShortcutInputResult.NOT_HANDLED
+        if (result == ShortcutInputResult.NOT_HANDLED) return false
+        shortcutComposition?.cancelPendingComposition()
+        shortcutDuplicateGuard?.record(key)
+        resetShortcutInputConnection()
+        return true
+    }
+
+    private fun consumeShortcutKeyEvent(
+        event: KeyEvent,
+        shortcutComposition: ShortcutCompositionCoordinator?,
+    ): Boolean {
+        if (event.action == KeyEvent.ACTION_UP && consumedShortcutKeyCodes.remove(event.keyCode)) {
+            return true
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (event.keyCode in consumedShortcutKeyCodes) return true
+        shortcutDuplicateGuard?.clear()
+        val router = shortcutInputRouter ?: return false
+        if (!router.hasActiveModifiers) return false
+        val key = when (event.keyCode) {
+            KeyEvent.KEYCODE_DEL -> ShortcutKey.Backspace
+            KeyEvent.KEYCODE_ENTER -> ShortcutKey.Enter
+            KeyEvent.KEYCODE_SPACE -> ShortcutKey.Space
+            else -> event.unicodeChar
+                .takeIf { it in 0x21..0x7E }
+                ?.toChar()
+                ?.let(ShortcutKey::Character)
+        }
+        val result = key?.let(router::handleKey) ?: ShortcutInputResult.INVALID
+        consumedShortcutKeyCodes += event.keyCode
+        shortcutComposition?.cancelPendingComposition()
+        if (key != null) shortcutDuplicateGuard?.record(key)
+        if (result == ShortcutInputResult.INVALID) showInvalidShortcutNotice()
+        resetShortcutInputConnection()
+        return true
+    }
+
+    private fun showInvalidShortcutNotice() {
+        val now = SystemClock.uptimeMillis()
+        if (!shortcutNoticeThrottle.shouldNotify(now)) return
+        onInvalidShortcutInput()
     }
 
     private fun consumeEmptyDeferredControlCommit(text: String): Boolean {
@@ -263,12 +410,17 @@ class RemoteInputEditText @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
+        currentShortcutComposition?.cancelPendingComposition()
+        currentShortcutComposition = null
+        shortcutDuplicateGuard?.clear()
+        consumedShortcutKeyCodes.clear()
         commandSession.reset()
         super.onDetachedFromWindow()
     }
 
     private companion object {
         const val MAX_REMOTE_BACKSPACES = 32
+        const val INVALID_SHORTCUT_NOTICE_INTERVAL_MILLIS = 1_500L
     }
 
     private enum class EmptyInputControl {

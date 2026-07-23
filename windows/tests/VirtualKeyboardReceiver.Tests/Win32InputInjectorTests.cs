@@ -258,6 +258,60 @@ public sealed class Win32InputInjectorTests
     }
 
     [Fact]
+    public void ShortcutChordUsesCanonicalModifierOrderAndDeduplicatesIntrinsicShift()
+    {
+        var sender = new RecordingSender();
+        var mapper = new RecordingPhysicalKeyMapper();
+        mapper.Add('A', new PhysicalKeyStroke(0x41, 0x1E, PhysicalKeyModifiers.Shift, false));
+        var injector = new Win32InputInjector(sender, physicalKeyMapper: mapper);
+
+        injector.PressShortcutChord(
+            [ShortcutModifier.Shift, ShortcutModifier.Control, ShortcutModifier.Meta],
+            new ShortcutKey.Character('A'));
+
+        Assert.Single(sender.Batches);
+        Assert.Equal(new ushort[] { 0x5B, 0x1D, 0x2A, 0x1E, 0x1E, 0x2A, 0x1D, 0x5B }, sender.Batches[0].Select(x => x.U.ki.wScan));
+        Assert.Equal(new uint[] { 9, 8, 8, 8, 10, 10, 10, 11 }, sender.Batches[0].Select(x => x.U.ki.dwFlags));
+    }
+
+    [Fact]
+    public void ShortcutChordUsesRightAltForAltGrAndSupportsSpecialKeys()
+    {
+        var sender = new RecordingSender();
+        var mapper = new RecordingPhysicalKeyMapper();
+        mapper.Add('@', new PhysicalKeyStroke(0x51, 0x10, PhysicalKeyModifiers.Control | PhysicalKeyModifiers.Alt, false));
+        var injector = new Win32InputInjector(sender, physicalKeyMapper: mapper);
+
+        injector.PressShortcutChord([ShortcutModifier.Meta], new ShortcutKey.Character('@'));
+        injector.PressShortcutChord([ShortcutModifier.Control], new ShortcutKey.Special(ShortcutSpecialKey.Space));
+        injector.PressShortcutChord([ShortcutModifier.Alt], new ShortcutKey.Special(ShortcutSpecialKey.Enter));
+        injector.PressShortcutChord([ShortcutModifier.Shift], new ShortcutKey.Special(ShortcutSpecialKey.Backspace));
+
+        Assert.Equal(new ushort[] { 0x5B, 0x1D, 0x38, 0x10, 0x10, 0x38, 0x1D, 0x5B }, sender.Batches[0].Select(x => x.U.ki.wScan));
+        Assert.Equal(new uint[] { 9, 8, 9, 8, 10, 11, 10, 11 }, sender.Batches[0].Select(x => x.U.ki.dwFlags));
+        Assert.Equal(new ushort[] { 0x1D, 0x39, 0x39, 0x1D }, sender.Batches[1].Select(x => x.U.ki.wScan));
+        Assert.Equal(new ushort[] { 0x38, 0x1C, 0x1C, 0x38 }, sender.Batches[2].Select(x => x.U.ki.wScan));
+        Assert.Equal(new ushort[] { 0x2A, 0x0E, 0x0E, 0x2A }, sender.Batches[3].Select(x => x.U.ki.wScan));
+    }
+
+    [Fact]
+    public void ShortcutChordFallsBackToUsAsciiAndCompensatesFailures()
+    {
+        var sender = new FaultingRecordingSender(throwOnCalls: [1]);
+        var mapper = new RecordingPhysicalKeyMapper();
+        var injector = new Win32InputInjector(sender, physicalKeyMapper: mapper);
+
+        Assert.Throws<InvalidOperationException>(() => injector.PressShortcutChord(
+            [ShortcutModifier.Control],
+            new ShortcutKey.Character('!')));
+
+        Assert.Equal(new ushort[] { 0x1D, 0x2A, 0x02, 0x02, 0x2A, 0x1D }, sender.Batches[0].Select(x => x.U.ki.wScan));
+        Assert.Equal(new uint[] { 8, 8, 8, 10, 10, 10 }, sender.Batches[0].Select(x => x.U.ki.dwFlags));
+        Assert.Equal(new ushort[] { 0x02, 0x2A, 0x1D }, sender.Batches[1].Select(x => x.U.ki.wScan));
+        Assert.Equal(new uint[] { 10, 10, 10 }, sender.Batches[1].Select(x => x.U.ki.dwFlags));
+    }
+
+    [Fact]
     public void SystemShortcutsUseOrderedScanCodeChords()
     {
         var sender = new RecordingSender();

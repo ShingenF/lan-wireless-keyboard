@@ -8,6 +8,7 @@ import android.content.ClipboardManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -34,6 +35,8 @@ import android.widget.Toast
 import com.local.virtualkeyboard.input.GameControlSource
 import com.local.virtualkeyboard.input.GameMovementController
 import com.local.virtualkeyboard.input.RemoteInputEditText
+import com.local.virtualkeyboard.input.ShortcutInputRouter
+import com.local.virtualkeyboard.input.ShortcutSelectionSnapshot
 import com.local.virtualkeyboard.network.NetworkClient
 import com.local.virtualkeyboard.protocol.AuthenticationProof
 import com.local.virtualkeyboard.protocol.ButtonAction
@@ -51,9 +54,11 @@ import com.local.virtualkeyboard.settings.ThemeColors
 import com.local.virtualkeyboard.settings.ThemeFramework
 import com.local.virtualkeyboard.settings.ThemeMode
 import com.local.virtualkeyboard.settings.ThemeSettings
+import com.local.virtualkeyboard.settings.requiresConnectionRestart
 import com.local.virtualkeyboard.ui.JoystickDirection
 import com.local.virtualkeyboard.ui.JoystickView
 import com.local.virtualkeyboard.ui.ScrollStripView
+import com.local.virtualkeyboard.ui.ShortcutPanelView
 import com.local.virtualkeyboard.ui.TouchpadView
 
 class MainActivity : Activity(), NetworkClient.Listener {
@@ -68,9 +73,11 @@ class MainActivity : Activity(), NetworkClient.Listener {
     private lateinit var languageToggleButton: TextView
     private lateinit var touchpadView: TouchpadView
     private lateinit var scrollStripView: ScrollStripView
+    private lateinit var shortcutPanel: ShortcutPanelView
     private val repeatCancellations = mutableListOf<() -> Unit>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val gameMovementController = GameMovementController { sendCommand(it) }
+    private var pendingImeHide: Runnable? = null
 
     private var networkClient: NetworkClient? = null
     private var activityVisible = false
@@ -94,9 +101,24 @@ class MainActivity : Activity(), NetworkClient.Listener {
         languageToggleButton = findViewById(R.id.languageToggleButton)
         touchpadView = findViewById(R.id.touchpad)
         scrollStripView = findViewById(R.id.scrollStrip)
+        shortcutPanel = findViewById(R.id.shortcutPanel)
         installImeInsetHandling(findViewById(R.id.mainRoot))
 
         inputView.configure(commandSink = ::sendCommand)
+        shortcutPanel.setOnSelectionChangedListener {
+            inputView.refreshShortcutInputConnection()
+        }
+        inputView.configureShortcutInput(
+            router = ShortcutInputRouter(
+                selection = shortcutPanel.selection,
+                onSelectionChanged = shortcutPanel::notifySelectionChanged,
+                emit = { sendCommand(it) },
+            ),
+            onInvalidInput = {
+                Toast.makeText(this, R.string.shortcut_input_invalid, Toast.LENGTH_SHORT).show()
+            },
+        )
+        (lastNonConfigurationInstance as? ShortcutSelectionSnapshot)?.let(shortcutPanel::restoreSelection)
         inputView.setOnEditorActionListener { _, _, _ -> inputView.handleEditorAction() }
 
         synchronousModeButton.apply {
@@ -207,6 +229,9 @@ class MainActivity : Activity(), NetworkClient.Listener {
         super.onSaveInstanceState(outState)
     }
 
+    @Suppress("DEPRECATION")
+    override fun onRetainNonConfigurationInstance(): Any = shortcutPanel.selection.snapshot()
+
     override fun onStart() {
         super.onStart()
         activityVisible = true
@@ -227,8 +252,11 @@ class MainActivity : Activity(), NetworkClient.Listener {
     override fun onStop() {
         activityVisible = false
         repeatCancellations.forEach { it() }
+        pendingImeHide?.let(mainHandler::removeCallbacks)
+        pendingImeHide = null
         gameMovementController.releaseAll()
         scrollStripView.cancelMotion()
+        if (!isChangingConfigurations) shortcutPanel.resetSelection()
         networkClient?.close()
         networkClient = null
         super.onStop()
@@ -238,6 +266,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         when (state) {
             NetworkClient.State.DISCONNECTED -> {
                 gameMovementController.releaseAll()
+                shortcutPanel.resetSelection()
                 showStatus("未连接，正在重试", R.color.disconnected)
             }
             NetworkClient.State.CONNECTING -> showStatus("正在连接电脑", R.color.connecting)
@@ -428,7 +457,15 @@ class MainActivity : Activity(), NetworkClient.Listener {
     }
 
     private fun installImeInsetHandling(root: View) {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            val visibleFrame = Rect()
+            root.viewTreeObserver.addOnGlobalLayoutListener {
+                root.getWindowVisibleDisplayFrame(visibleFrame)
+                val obscuredHeight = root.rootView.height - visibleFrame.bottom
+                updateShortcutPanelImeVisibility(obscuredHeight > dp(100))
+            }
+            return
+        }
         val originalLeft = root.paddingLeft
         val originalTop = root.paddingTop
         val originalRight = root.paddingRight
@@ -436,6 +473,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         root.setOnApplyWindowInsetsListener { view, windowInsets ->
             val systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars())
             val imeBottom = windowInsets.getInsets(WindowInsets.Type.ime()).bottom
+            updateShortcutPanelImeVisibility(windowInsets.isVisible(WindowInsets.Type.ime()))
             view.setPadding(
                 originalLeft + systemBars.left,
                 originalTop + systemBars.top,
@@ -445,6 +483,21 @@ class MainActivity : Activity(), NetworkClient.Listener {
             windowInsets
         }
         root.requestApplyInsets()
+    }
+
+    private fun updateShortcutPanelImeVisibility(visible: Boolean) {
+        pendingImeHide?.let(mainHandler::removeCallbacks)
+        pendingImeHide = null
+        if (visible) {
+            shortcutPanel.setImeVisible(true)
+            return
+        }
+        val hide = Runnable {
+            pendingImeHide = null
+            shortcutPanel.setImeVisible(false)
+        }
+        pendingImeHide = hide
+        mainHandler.postDelayed(hide, IME_HIDE_DEBOUNCE_MILLIS)
     }
 
     private fun showSettingsDialog() {
@@ -801,8 +854,11 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     ),
                 )
                 val updated = settingsStore.load()
+                val connectionChanged = current.requiresConnectionRestart(updated)
                 applySettingsToUi(updated)
-                if (activityVisible) startConnection(updated)
+                if (activityVisible && (networkClient == null || connectionChanged)) {
+                    startConnection(updated)
+                }
                 dialog.dismiss()
                 focusInputWithoutShowingIme()
             }
@@ -896,8 +952,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
         choices: List<ShortcutChoice<T>>,
         selected: T,
         themeColors: ThemeColors,
-    ): ShortcutSelection<T> {
-        val selection = ShortcutSelection(
+    ): SettingsShortcutSelection<T> {
+        val selection = SettingsShortcutSelection(
             view = shortcutSelectorField(shortcutLabel(selected, choices), themeColors),
             selected = selected,
         )
@@ -1101,6 +1157,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         findViewById<View>(R.id.inputContainer).backgroundTintList =
             ColorStateList.valueOf(themeColors.inputBackgroundArgb)
         touchpadView.backgroundTintList = ColorStateList.valueOf(themeColors.touchpadBackgroundArgb)
+        shortcutPanel.applyTheme(themeColors)
         statusView.setTextColor(themeColors.primaryTextArgb)
         inputView.setTextColor(themeColors.primaryTextArgb)
         inputView.setHintTextColor(themeColors.secondaryTextArgb)
@@ -1203,7 +1260,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
     private companion object {
         data class ShortcutChoice<T>(val value: T, val label: String)
-        data class ShortcutSelection<T>(val view: TextView, var selected: T)
+        data class SettingsShortcutSelection<T>(val view: TextView, var selected: T)
 
         val LANGUAGE_SHORTCUT_CHOICES = listOf(
             ShortcutChoice(LanguageToggleShortcut.SHIFT, "Shift（默认）"),
@@ -1221,6 +1278,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         )
         const val KEY_REPEAT_DELAY_MILLIS = 350L
         const val KEY_REPEAT_INTERVAL_MILLIS = 70L
+        const val IME_HIDE_DEBOUNCE_MILLIS = 300L
         const val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
         const val STATE_DEFERRED_MODE = "deferred_mode"
         const val STATE_DEFERRED_DRAFT = "deferred_draft"

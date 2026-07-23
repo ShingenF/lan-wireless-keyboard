@@ -16,6 +16,11 @@ data class ConnectionSettings(
     val themeSettings: ThemeSettings = ThemeSettings(),
 )
 
+fun ConnectionSettings.requiresConnectionRestart(updated: ConnectionSettings): Boolean =
+    host != updated.host ||
+        port != updated.port ||
+        pairingCode != updated.pairingCode
+
 object PointerAcceleration {
     const val MIN_GAIN = 1.0f
     const val MAX_GAIN = 3.0f

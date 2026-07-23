@@ -139,6 +139,7 @@ class SettingsStore(context: Context) {
     ): ThemeColors = ThemeColors(
         background = loadHex(keys.background, defaults.background),
         icon = loadHex(keys.icon, defaults.icon),
+        accent = loadHex(keys.accent, defaults.accent),
         primaryText = loadHex(keys.primaryText, defaults.primaryText),
         secondaryText = secondaryText ?: loadHex(keys.secondaryText, defaults.secondaryText),
         inputBackground = loadHex(keys.inputBackground, defaults.inputBackground),
@@ -151,6 +152,7 @@ class SettingsStore(context: Context) {
     ): SharedPreferences.Editor = apply {
         putString(keys.background, colors.background.canonical)
         putString(keys.icon, colors.icon.canonical)
+        putString(keys.accent, colors.accent.canonical)
         putString(keys.primaryText, colors.primaryText.canonical)
         putString(keys.secondaryText, colors.secondaryText.canonical)
         putString(keys.inputBackground, colors.inputBackground.canonical)
@@ -226,6 +228,7 @@ class SettingsStore(context: Context) {
     private data class ThemePalettePreferenceKeys(
         val background: String,
         val icon: String,
+        val accent: String,
         val primaryText: String,
         val secondaryText: String,
         val inputBackground: String,
@@ -250,12 +253,14 @@ class SettingsStore(context: Context) {
         const val KEY_THEME_FORCE_DARK = "theme_force_dark"
         const val KEY_BACKGROUND_COLOR = "background_color"
         const val KEY_ICON_COLOR = "icon_color"
+        const val KEY_ACCENT_COLOR = "accent_color"
         const val KEY_PRIMARY_TEXT_COLOR = "primary_text_color"
         const val KEY_SECONDARY_TEXT_COLOR = "secondary_text_color"
         const val KEY_INPUT_BACKGROUND_COLOR = "input_background_color"
         const val KEY_TOUCHPAD_BACKGROUND_COLOR = "touchpad_background_color"
         const val KEY_DARK_BACKGROUND_COLOR = "dark_background_color"
         const val KEY_DARK_ICON_COLOR = "dark_icon_color"
+        const val KEY_DARK_ACCENT_COLOR = "dark_accent_color"
         const val KEY_DARK_PRIMARY_TEXT_COLOR = "dark_primary_text_color"
         const val KEY_DARK_SECONDARY_TEXT_COLOR = "dark_secondary_text_color"
         const val KEY_DARK_INPUT_BACKGROUND_COLOR = "dark_input_background_color"
@@ -269,6 +274,7 @@ class SettingsStore(context: Context) {
         val LIGHT_PALETTE_KEYS = ThemePalettePreferenceKeys(
             background = KEY_BACKGROUND_COLOR,
             icon = KEY_ICON_COLOR,
+            accent = KEY_ACCENT_COLOR,
             primaryText = KEY_PRIMARY_TEXT_COLOR,
             secondaryText = KEY_SECONDARY_TEXT_COLOR,
             inputBackground = KEY_INPUT_BACKGROUND_COLOR,
@@ -277,6 +283,7 @@ class SettingsStore(context: Context) {
         val DARK_PALETTE_KEYS = ThemePalettePreferenceKeys(
             background = KEY_DARK_BACKGROUND_COLOR,
             icon = KEY_DARK_ICON_COLOR,
+            accent = KEY_DARK_ACCENT_COLOR,
             primaryText = KEY_DARK_PRIMARY_TEXT_COLOR,
             secondaryText = KEY_DARK_SECONDARY_TEXT_COLOR,
             inputBackground = KEY_DARK_INPUT_BACKGROUND_COLOR,

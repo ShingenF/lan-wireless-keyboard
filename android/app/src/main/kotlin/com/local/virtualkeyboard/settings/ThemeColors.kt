@@ -8,6 +8,7 @@ value class HexColor private constructor(val canonical: String) {
     companion object {
         val DEFAULT_BACKGROUND = HexColor("#F2F2F2")
         val DEFAULT_ICON = HexColor("#B4B4B4")
+        val DEFAULT_ACCENT = HexColor("#3372DE")
         val DEFAULT_PRIMARY_TEXT = HexColor("#2F2F32")
         val DEFAULT_SECONDARY_TEXT = HexColor("#8E8E93")
         val DEFAULT_INPUT_BACKGROUND = HexColor("#FFFFFF")
@@ -36,6 +37,7 @@ value class HexColor private constructor(val canonical: String) {
 data class ThemeColors(
     val background: HexColor = HexColor.DEFAULT_BACKGROUND,
     val icon: HexColor = HexColor.DEFAULT_ICON,
+    val accent: HexColor = HexColor.DEFAULT_ACCENT,
     val primaryText: HexColor = HexColor.DEFAULT_PRIMARY_TEXT,
     val secondaryText: HexColor = HexColor.DEFAULT_SECONDARY_TEXT,
     val inputBackground: HexColor = HexColor.DEFAULT_INPUT_BACKGROUND,
@@ -43,6 +45,7 @@ data class ThemeColors(
 ) {
     val backgroundArgb: Int get() = background.argb
     val iconArgb: Int get() = icon.argb
+    val accentArgb: Int get() = accent.argb
     val primaryTextArgb: Int get() = primaryText.argb
     val secondaryTextArgb: Int get() = secondaryText.argb
     val inputBackgroundArgb: Int get() = inputBackground.argb
@@ -94,6 +97,7 @@ object ThemeFramework {
     ) {
         BACKGROUND("background", { it.background }),
         ICON("icon", { it.icon }),
+        ACCENT("accent", { it.accent }),
         PRIMARY_TEXT("primary_text", { it.primaryText }),
         SECONDARY_TEXT("secondary_text", { it.secondaryText }),
         INPUT_BACKGROUND("input_background", { it.inputBackground }),
@@ -162,12 +166,13 @@ object ThemeFramework {
 
     private fun parsePalette(name: String, values: Map<ThemeField, HexColor>?): ThemeColors {
         val paletteValues = requireNotNull(values) { "缺少 [$name]" }
-        ThemeField.entries.firstOrNull { it !in paletteValues }?.let { missing ->
+        ThemeField.entries.firstOrNull { it != ThemeField.ACCENT && it !in paletteValues }?.let { missing ->
             throw IllegalArgumentException("[$name] 缺少 ${missing.key}")
         }
         return ThemeColors(
             background = paletteValues.getValue(ThemeField.BACKGROUND),
             icon = paletteValues.getValue(ThemeField.ICON),
+            accent = paletteValues[ThemeField.ACCENT] ?: HexColor.DEFAULT_ACCENT,
             primaryText = paletteValues.getValue(ThemeField.PRIMARY_TEXT),
             secondaryText = paletteValues.getValue(ThemeField.SECONDARY_TEXT),
             inputBackground = paletteValues.getValue(ThemeField.INPUT_BACKGROUND),

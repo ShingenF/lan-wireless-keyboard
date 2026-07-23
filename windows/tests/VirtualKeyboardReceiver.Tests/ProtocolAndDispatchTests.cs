@@ -25,6 +25,7 @@ public sealed class ProtocolAndDispatchTests
         { Json("keyState", "\"key\":\"w\",\"action\":\"down\""), typeof(KeyStateCommand) },
         { Json("systemShortcut", "\"shortcut\":\"shift\""), typeof(SystemShortcutCommand) },
         { Json("systemShortcut", "\"shortcut\":\"altShift\""), typeof(SystemShortcutCommand) },
+        { Json("shortcutChord", "\"modifiers\":[\"control\",\"shift\"],\"key\":\"c\""), typeof(ShortcutChordCommand) },
         { Json("pointerMove", "\"dx\":3,\"dy\":-4"), typeof(PointerMoveCommand) },
         { Json("pointerButton", "\"button\":\"right\",\"action\":\"down\""), typeof(PointerButtonCommand) },
         { Json("wheel", "\"delta\":120"), typeof(WheelCommand) },
@@ -44,6 +45,19 @@ public sealed class ProtocolAndDispatchTests
             Encoding.UTF8.GetBytes(Json("systemShortcut", $"\"shortcut\":\"{shortcut}\""))));
 
         Assert.Equal(expected, command.Shortcut);
+    }
+
+    [Fact]
+    public void Parser_MapsShortcutChordModifiersCharactersAndSpecialKeys()
+    {
+        var character = Assert.IsType<ShortcutChordCommand>(ProtocolParser.ParseCommand(
+            Encoding.UTF8.GetBytes(Json("shortcutChord", "\"modifiers\":[\"meta\",\"control\"],\"key\":\"c\""))));
+        var backspace = Assert.IsType<ShortcutChordCommand>(ProtocolParser.ParseCommand(
+            Encoding.UTF8.GetBytes(Json("shortcutChord", "\"modifiers\":[\"alt\"],\"key\":\"backspace\""))));
+
+        Assert.Equal([ShortcutModifier.Meta, ShortcutModifier.Control], character.Modifiers);
+        Assert.Equal(new ShortcutKey.Character('c'), character.Key);
+        Assert.Equal(new ShortcutKey.Special(ShortcutSpecialKey.Backspace), backspace.Key);
     }
 
     [Theory]
@@ -84,6 +98,12 @@ public sealed class ProtocolAndDispatchTests
     [InlineData("{\"version\":1,\"type\":\"systemShortcut\",\"seq\":1,\"timestamp\":2,\"shortcut\":1}")]
     [InlineData("{\"version\":1,\"type\":\"systemShortcut\",\"seq\":1,\"timestamp\":2,\"shortcut\":\"shift\",\"extra\":true}")]
     [InlineData("{\"version\":1,\"type\":\"systemShortcut\",\"seq\":1,\"timestamp\":2,\"shortcut\":\"shift\",\"shortcut\":\"capsLock\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":[],\"key\":\"c\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":[\"control\",\"control\"],\"key\":\"c\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":[\"hyper\"],\"key\":\"c\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":\"control\",\"key\":\"c\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":[\"control\"],\"key\":\"中\"}")]
+    [InlineData("{\"version\":1,\"type\":\"shortcutChord\",\"seq\":1,\"timestamp\":2,\"modifiers\":[\"control\"],\"key\":\"cc\"}")]
     public void Parser_RejectsMalformedWrongVersionUnknownAndUnknownFields(string json) =>
         Assert.Throws<ProtocolException>(() => ProtocolParser.ParseCommand(Encoding.UTF8.GetBytes(json)));
 
@@ -192,6 +212,20 @@ public sealed class ProtocolAndDispatchTests
     }
 
     [Fact]
+    public void Dispatcher_DispatchesShortcutChord()
+    {
+        var fake = new RecordingInjector();
+        new CommandDispatcher(fake).Dispatch(new ShortcutChordCommand(
+            1,
+            2,
+            [ShortcutModifier.Meta, ShortcutModifier.Shift],
+            new ShortcutKey.Special(ShortcutSpecialKey.Enter)));
+
+        Assert.Equal([ShortcutModifier.Meta, ShortcutModifier.Shift], fake.LastChordModifiers);
+        Assert.Equal(new ShortcutKey.Special(ShortcutSpecialKey.Enter), fake.LastChordKey);
+    }
+
+    [Fact]
     public void Dispatcher_DownFailureDoesNotHoldAndUpFailureRemainsForCleanupRetry()
     {
         var injector = new StatefulGameInjector();
@@ -254,12 +288,15 @@ public sealed class ProtocolAndDispatchTests
         public List<bool> TextPreferences { get; } = [];
         public List<bool> TextCancellationStates { get; } = [];
         public bool ThrowIfTextCancellationRequested { get; set; }
+        public IReadOnlyList<ShortcutModifier>? LastChordModifiers { get; private set; }
+        public ShortcutKey? LastChordKey { get; private set; }
         public void InjectText(string text, bool preferPhysicalKeys, CancellationToken cancellationToken = default) { Events.Add($"text:{text}"); TextPreferences.Add(preferPhysicalKeys); TextCancellationStates.Add(cancellationToken.IsCancellationRequested); if (ThrowIfTextCancellationRequested) cancellationToken.ThrowIfCancellationRequested(); }
         public void PressKey(ReceiverKey key) => Events.Add($"key:{key}");
         public void MovePointer(int dx, int dy) => Events.Add($"move:{dx},{dy}");
         public void SetPointerButton(MouseButton button, ButtonAction action) => Events.Add($"button:{button},{action}");
         public void SetKeyState(GameKey key, ButtonAction action) => Events.Add($"game:{key},{action}");
         public void PressSystemShortcut(SystemShortcut shortcut) => Events.Add($"shortcut:{shortcut}");
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { LastChordModifiers = modifiers; LastChordKey = key; }
         public void Wheel(int delta) => Events.Add($"wheel:{delta}");
     }
 
@@ -284,6 +321,7 @@ public sealed class ProtocolAndDispatchTests
         public void SetPointerButton(MouseButton button, ButtonAction action) { }
         public void SetKeyState(GameKey key, ButtonAction action) { }
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) { }
     }
 
@@ -311,6 +349,7 @@ public sealed class ProtocolAndDispatchTests
             }
         }
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) { }
     }
 
@@ -331,6 +370,7 @@ public sealed class ProtocolAndDispatchTests
             if (action == ButtonAction.Up) throw new InvalidOperationException("game release failed");
         }
         public void PressSystemShortcut(SystemShortcut shortcut) { }
+        public void PressShortcutChord(IReadOnlyList<ShortcutModifier> modifiers, ShortcutKey key) { }
         public void Wheel(int delta) { }
     }
 }

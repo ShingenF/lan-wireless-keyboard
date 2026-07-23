@@ -13,7 +13,8 @@
   touchpad, charcoal primary text, and `#8E8E93` secondary text. Also provide a
   dark palette. Follow Android's system dark-mode state by default; settings can
   disable system following and force either the light or dark palette. Do not use
-  shadows, border strokes, or gradients.
+  gradients. The shortcut overlay may use the Figma-defined soft shadow and its
+  inactive modifier buttons use a one-pixel theme-icon-colour border.
 - Use the official MIT-licensed Hugeicons Free Icons 4.2.2 Stroke Rounded
   geometry for the settings, send, globe, launcher, and stemless direction icons. Arrange
   each module's four chevrons around a small circular joystick. Keep the chevrons
@@ -31,8 +32,8 @@
   do not provide haptic feedback.
 - Replace the individual colour inputs with one editable, copyable configuration
   framework containing `[light]` and `[dark]` sections. Each section exposes page
-  background, icon, primary text, secondary text, input background, and touchpad
-  background. Show an AI prompt that explains the fields and provide one action
+  background, icon, accent, primary text, secondary text, input background, and
+  touchpad background. The accent drives one-shot shortcut selection. Show an AI prompt that explains the fields and provide one action
   that copies the prompt together with the current framework for use in ChatGPT,
   Claude, or similar tools. Accept six hexadecimal digits with an optional `#`,
   reject invalid, missing, duplicate, unknown, or alpha values, normalise saved
@@ -83,7 +84,18 @@
   defaults to a direct `Shift` press. Settings persist only predefined common choices:
   language toggle offers `Shift`, `Ctrl/Control + Space`, and macOS `Caps Lock`;
   input-method toggle offers Windows `Win + Space`, `Alt + Shift`, `Ctrl + Shift`,
-  and macOS `Control + Space`. Do not accept or transmit arbitrary key chords.
+  and macOS `Control + Space`. These two fixed controls still transmit only their
+  predefined system shortcuts.
+- Overlay Shift, Control, Alt/Opt, and Win/Cmd modifier buttons at the bottom of the
+  page. A tap arms a one-shot modifier with light haptics. Holding for one second
+  converts all armed modifiers and the target to a persistent half-lock with strong
+  haptics; later taps enter the same mode until the final latch is cleared. When the
+  IME is visible, collapse the panel against the keyboard and expose a toggle that
+  animates the full row open. Printable ASCII, Space, Enter, and Backspace emit one
+  `shortcutChord` in both input modes without modifying a deferred draft. Reject and
+  consume other text with a throttled user notice. Clear one-shot modifiers only
+  after the command enters the client send queue; keep latches until explicitly
+  cleared, but reset all modifiers when the activity stops or the session disconnects.
 - Follow Sogou's exposed event stream: its Chinese pinyin/candidates remain inside
   Sogou, so only the selected `commitText` reaches the PC. Its English composing
   word is exposed through the input connection and is mirrored with tail updates;
@@ -113,11 +125,15 @@
 - HMAC key: uppercase 16-character Base32 pairing code without separators.
 - HMAC data: UTF-8 bytes of `nonce:fingerprint`.
 - Commands: `textCommit`, `replaceTail` (protocol compatibility), `keyPress`, `keyState`,
-  `systemShortcut`, `pointerMove`, `pointerButton`, `wheel`, and `ping`.
+  `systemShortcut`, `shortcutChord`, `pointerMove`, `pointerButton`, `wheel`, and `ping`.
 - `textCommit` and `replaceTail` accept optional Boolean `preferPhysicalKeys`,
   defaulting to `false`; other commands reject it. `keyPress` includes `escape`.
 - `keyState` accepts only W/A/S/D and the actions `down`/`up`. The receiver injects
   hardware scan-code state and releases all still-held game keys when a session ends.
+- `shortcutChord` requires a non-empty unique array drawn from `shift`, `control`,
+  `alt`, and `meta`, plus one printable ASCII key or `space`, `enter`, `backspace`.
+  The receiver injects the complete chord atomically and compensates key-up events
+  after a failed `SendInput` call.
 - `systemShortcut` accepts only `shift`, `controlSpace`, `capsLock`, `windowsSpace`,
   `controlShift`, or `altShift`. The receiver presses each fixed chord in key-down
   order and releases it in reverse order without leaving a modifier held after failure.

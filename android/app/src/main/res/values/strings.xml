@@ -50,10 +50,17 @@
     <string name="theme_follow_system">跟随 Android 深色模式</string>
     <string name="theme_force_dark">强制深色模式（关闭则强制浅色）</string>
     <string name="theme_prompt_section">颜色配置提示词</string>
-    <string name="theme_ai_prompt">请帮我调整这份 Android 局域网键盘的浅色和深色配色。只修改等号右侧的 6 位 HEX，\n保留 [light]、[dark]、全部字段名和原有格式，并只返回完整配置框架，不要添加解释。\nbackground 是页面背景，icon 是图标/按键文字，primary_text 是主要文字，\nsecondary_text 是次要文字，input_background 是输入框背景，\ntouchpad_background 是触摸板背景。请保证文字和背景有清晰对比度。</string>
+    <string name="theme_ai_prompt">请帮我调整这份 Android 局域网键盘的浅色和深色配色。只修改等号右侧的 6 位 HEX，\n保留 [light]、[dark]、全部字段名和原有格式，并只返回完整配置框架，不要添加解释。\nbackground 是页面背景，icon 是图标/按键文字，accent 是强调色和快捷键待命色，\nprimary_text 是主要文字，secondary_text 是次要文字，input_background 是输入框和面板背景，\ntouchpad_background 是触摸板背景。请保证文字和背景有清晰对比度。</string>
     <string name="theme_copy_prompt_and_framework">复制提示词和当前框架</string>
     <string name="theme_clipboard_label">局域网键盘颜色配置</string>
     <string name="theme_copy_confirmation">提示词和框架已复制</string>
     <string name="theme_framework_section">颜色配置框架（可直接修改或粘贴 AI 返回内容）</string>
     <string name="theme_framework_hint">[light] / [dark] 颜色配置</string>
+    <string name="shortcut_shift">Shift</string>
+    <string name="shortcut_control">Control</string>
+    <string name="shortcut_alt">Alt/Opt</string>
+    <string name="shortcut_meta">Win/Cmd</string>
+    <string name="shortcut_panel_expand">展开快捷键面板</string>
+    <string name="shortcut_panel_collapse">收起快捷键面板</string>
+    <string name="shortcut_input_invalid">快捷键仅支持单个字符、空格、回车或退格</string>
 </resources>

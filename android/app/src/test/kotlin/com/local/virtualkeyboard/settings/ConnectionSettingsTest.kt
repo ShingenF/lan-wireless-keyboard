@@ -1,6 +1,8 @@
 package com.local.virtualkeyboard.settings
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConnectionSettingsTest {
@@ -45,5 +47,20 @@ class ConnectionSettingsTest {
     fun `unknown scroll haptic profile falls back to the standard feel`() {
         assertEquals(ScrollHapticProfile.STANDARD, ScrollHapticProfile.fromStoredValue("future-profile"))
         assertEquals(ScrollHapticProfile.LIGHT, ScrollHapticProfile.fromStoredValue("light"))
+    }
+
+    @Test
+    fun `theme-only changes do not restart the active connection`() {
+        val current = ConnectionSettings(
+            host = "192.168.1.2",
+            pairingCode = "ABCDEFGHIJKLMNOP",
+        )
+
+        assertFalse(
+            current.requiresConnectionRestart(
+                current.copy(themeSettings = ThemeSettings(mode = ThemeMode.DARK)),
+            ),
+        )
+        assertTrue(current.requiresConnectionRestart(current.copy(host = "192.168.1.3")))
     }
 }

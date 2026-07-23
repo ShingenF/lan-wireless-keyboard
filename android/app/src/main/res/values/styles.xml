@@ -3,7 +3,7 @@
     <style name="BaseAppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/text_primary</item>
-        <item name="android:navigationBarColor">@color/screen_background</item>
+        <item name="android:navigationBarColor">@color/surface</item>
         <item name="android:statusBarColor">@color/screen_background</item>
         <item name="android:windowBackground">@color/screen_background</item>
         <item name="android:windowLightStatusBar">true</item>

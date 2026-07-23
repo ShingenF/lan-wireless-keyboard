@@ -17,6 +17,20 @@ import android.widget.EditText
 import com.local.virtualkeyboard.protocol.OutgoingCommand
 import com.local.virtualkeyboard.protocol.ShortcutKey
 
+internal fun remoteInputType(
+    deferred: Boolean,
+    shortcutActive: Boolean,
+): Int =
+    InputType.TYPE_CLASS_TEXT or
+        if (shortcutActive) {
+            InputType.TYPE_TEXT_VARIATION_FILTER or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        } else {
+            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+        } or
+        if (deferred) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0
+
 class RemoteInputEditText @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -274,16 +288,10 @@ class RemoteInputEditText @JvmOverloads constructor(
         minLines = 1
         maxLines = 1
         gravity = Gravity.CENTER_VERTICAL or Gravity.START
-        inputType =
-            InputType.TYPE_CLASS_TEXT or
-                if (shortcutInputActive) {
-                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
-                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                } else {
-                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
-                        InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                } or
-                if (deferred) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0
+        inputType = remoteInputType(
+            deferred = deferred,
+            shortcutActive = shortcutInputActive,
+        )
         imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or
             if (deferred) EditorInfo.IME_FLAG_NO_ENTER_ACTION else 0
         setHorizontallyScrolling(!deferred)

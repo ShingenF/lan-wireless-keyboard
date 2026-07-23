@@ -30,6 +30,7 @@ class ShortcutPanelView @JvmOverloads constructor(
 ) : FrameLayout(context, attrs) {
     val selection = ShortcutSelection()
 
+    private val bodyClipLayer = FrameLayout(context)
     private val body = LinearLayout(context)
     private val toggleMotionLayer = FrameLayout(context)
     private val toggle = FrameLayout(context)
@@ -108,9 +109,17 @@ class ShortcutPanelView @JvmOverloads constructor(
     }
 
     private fun buildBody() {
+        bodyClipLayer.apply {
+            clipChildren = true
+            clipToPadding = true
+        }
+        addView(
+            bodyClipLayer,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+        )
+
         body.apply {
             orientation = LinearLayout.VERTICAL
-            elevation = dp(4).toFloat()
             setPadding(
                 dp(BODY_HORIZONTAL_PADDING_DP),
                 dp(BODY_VERTICAL_PADDING_DP),
@@ -118,7 +127,7 @@ class ShortcutPanelView @JvmOverloads constructor(
                 dp(BODY_VERTICAL_PADDING_DP),
             )
         }
-        addView(
+        bodyClipLayer.addView(
             body,
             LayoutParams(LayoutParams.MATCH_PARENT, dp(BODY_HEIGHT_DP), Gravity.BOTTOM),
         )

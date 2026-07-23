@@ -68,7 +68,10 @@ import com.local.virtualkeyboard.ui.LegacyImePanelMotionAction
 import com.local.virtualkeyboard.ui.LegacyImePanelMotionState
 import com.local.virtualkeyboard.ui.ScrollStripView
 import com.local.virtualkeyboard.ui.ShortcutPanelView
+import com.local.virtualkeyboard.ui.SystemBarStyle
 import com.local.virtualkeyboard.ui.TouchpadView
+import com.local.virtualkeyboard.ui.navigationBarBackdropTranslation
+import com.local.virtualkeyboard.ui.systemBarStyleFor
 
 class MainActivity : Activity(), NetworkClient.Listener {
     private lateinit var settingsStore: SettingsStore
@@ -550,6 +553,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
 
     @TargetApi(Build.VERSION_CODES.R)
     private fun installAnimatedImeInsetHandling(root: View) {
+        val navigationBarBackground = findViewById<View>(R.id.navigationBarBackground)
         val originalLeft = root.paddingLeft
         val originalTop = root.paddingTop
         val originalRight = root.paddingRight
@@ -611,6 +615,15 @@ class MainActivity : Activity(), NetworkClient.Listener {
             val systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars())
             val imeBottom = windowInsets.getInsets(WindowInsets.Type.ime()).bottom
             val imeVisible = windowInsets.isVisible(WindowInsets.Type.ime())
+            if (navigationBarBackground.layoutParams.height != systemBars.bottom) {
+                navigationBarBackground.layoutParams = navigationBarBackground.layoutParams.apply {
+                    height = systemBars.bottom
+                }
+            }
+            navigationBarBackground.translationY = navigationBarBackdropTranslation(
+                systemBarBottom = systemBars.bottom,
+                imeBottom = imeBottom,
+            ).toFloat()
             val panelUpdate = panelMotionState.onInsetsApplied(
                 visible = imeVisible,
                 layoutBottom = maxOf(systemBars.bottom, imeBottom),
@@ -1296,6 +1309,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
         languageToggleShortcut = settings.languageToggleShortcut
         inputMethodShortcut = settings.inputMethodShortcut
         findViewById<View>(R.id.mainRoot).setBackgroundColor(themeColors.backgroundArgb)
+        findViewById<View>(R.id.navigationBarBackground)
+            .setBackgroundColor(themeColors.inputBackgroundArgb)
         findViewById<View>(R.id.inputContainer).backgroundTintList =
             ColorStateList.valueOf(themeColors.inputBackgroundArgb)
         touchpadView.backgroundTintList = ColorStateList.valueOf(themeColors.touchpadBackgroundArgb)
@@ -1336,9 +1351,16 @@ class MainActivity : Activity(), NetworkClient.Listener {
         findViewById<JoystickView>(R.id.joystick).setKnobColor(themeColors.iconArgb)
         findViewById<JoystickView>(R.id.gameJoystick).setKnobColor(themeColors.iconArgb)
 
-        window.statusBarColor = themeColors.backgroundArgb
-        window.navigationBarColor = themeColors.backgroundArgb
-        applySystemBarIconContrast(themeColors.backgroundArgb)
+        val systemBarStyle = systemBarStyleFor(themeColors)
+        window.statusBarColor = systemBarStyle.statusBarColor
+        window.navigationBarColor = systemBarStyle.navigationBarColor
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.navigationBarDividerColor = systemBarStyle.navigationBarColor
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+        applySystemBarIconContrast(systemBarStyle)
     }
 
     private fun isSystemDarkTheme(): Boolean =
@@ -1364,20 +1386,34 @@ class MainActivity : Activity(), NetworkClient.Listener {
     }
 
     @Suppress("DEPRECATION")
-    private fun applySystemBarIconContrast(backgroundColor: Int) {
-        val useDarkIcons = Color.luminance(backgroundColor) >= 0.5f
+    private fun applySystemBarIconContrast(style: SystemBarStyle) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val mask =
                 WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
                     WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            window.insetsController?.setSystemBarsAppearance(if (useDarkIcons) mask else 0, mask)
+            val appearance =
+                (if (style.useDarkStatusBarIcons) {
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                } else {
+                    0
+                }) or
+                    (if (style.useDarkNavigationBarIcons) {
+                        WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    } else {
+                        0
+                    })
+            window.insetsController?.setSystemBarsAppearance(appearance, mask)
         } else {
             val mask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            window.decorView.systemUiVisibility = if (useDarkIcons) {
-                window.decorView.systemUiVisibility or mask
-            } else {
-                window.decorView.systemUiVisibility and mask.inv()
-            }
+            val appearance =
+                (if (style.useDarkStatusBarIcons) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else 0) or
+                    (if (style.useDarkNavigationBarIcons) {
+                        View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    } else {
+                        0
+                    })
+            window.decorView.systemUiVisibility =
+                (window.decorView.systemUiVisibility and mask.inv()) or appearance
         }
     }
 

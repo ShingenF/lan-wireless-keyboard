@@ -20,19 +20,24 @@ class ImePanelMotionStateTest {
         val endLayout = state.onInsetsApplied(visible = true, layoutBottom = 720)
         assertEquals(660, endLayout.translationY)
         assertEquals(ImePanelVisibilityUpdate.KEEP, endLayout.visibility)
+        assertEquals(ImePanelBodyUpdate.RESTORE_FOR_SHOW, endLayout.body)
 
         assertEquals(
             ImePanelMotionUpdate(translationY = 480, visibility = ImePanelVisibilityUpdate.KEEP),
             state.onAnimationProgress(layoutBottom = 240),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
+            ImePanelMotionUpdate(
+                translationY = 0,
+                visibility = ImePanelVisibilityUpdate.SHOW,
+                toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
+            ),
             state.onAnimationEnd(),
         )
     }
 
     @Test
-    fun `closing keeps the expanded state until the arrow has moved down`() {
+    fun `closing moves the arrow ahead of the keyboard and finishes early`() {
         val state = ImePanelMotionState()
         state.onInsetsApplied(visible = true, layoutBottom = 720)
 
@@ -43,13 +48,26 @@ class ImePanelMotionStateTest {
         val endLayout = state.onInsetsApplied(visible = false, layoutBottom = 60)
         assertEquals(-660, endLayout.translationY)
         assertEquals(ImePanelVisibilityUpdate.KEEP, endLayout.visibility)
+        assertEquals(ImePanelBodyUpdate.PREPARE_FOR_HIDE, endLayout.body)
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = -240, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(translationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
             state.onAnimationProgress(layoutBottom = 300),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.HIDE),
+            ImePanelMotionUpdate(
+                translationY = 0,
+                visibility = ImePanelVisibilityUpdate.KEEP,
+                toggleVisibility = ImeToggleVisibilityUpdate.HIDE,
+            ),
+            state.onAnimationProgress(layoutBottom = 225),
+        )
+        assertEquals(
+            ImePanelMotionUpdate(
+                translationY = 0,
+                visibility = ImePanelVisibilityUpdate.HIDE,
+                toggleVisibility = ImeToggleVisibilityUpdate.HIDE,
+            ),
             state.onAnimationEnd(),
         )
     }
@@ -77,15 +95,28 @@ class ImePanelMotionStateTest {
         state.onAnimationProgress(layoutBottom = 300)
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = -240, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(translationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
             state.onAnimationPrepare(),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 420, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(
+                translationY = 560,
+                visibility = ImePanelVisibilityUpdate.KEEP,
+                toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
+                body = ImePanelBodyUpdate.RESTORE_FOR_SHOW,
+            ),
             state.onInsetsApplied(visible = true, layoutBottom = 720),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
+            ImePanelMotionUpdate(translationY = 280, visibility = ImePanelVisibilityUpdate.KEEP),
+            state.onAnimationProgress(layoutBottom = 510),
+        )
+        assertEquals(
+            ImePanelMotionUpdate(
+                translationY = 0,
+                visibility = ImePanelVisibilityUpdate.SHOW,
+                toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
+            ),
             state.onAnimationEnd(),
         )
     }

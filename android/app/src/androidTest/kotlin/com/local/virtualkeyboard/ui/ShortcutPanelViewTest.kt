@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.os.Build
 import android.view.View
 import android.view.View.MeasureSpec
+import android.view.ViewGroup
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -61,7 +62,7 @@ class ShortcutPanelViewTest {
             )
             val toggle = collapseControls.single()
 
-            assertEquals(0f, toggle.translationY)
+            assertEquals(1f, toggle.translationY)
             assertEquals(0f, toggle.alpha)
             assertEquals(false, toggle.isClickable)
             assertEquals(
@@ -71,7 +72,7 @@ class ShortcutPanelViewTest {
 
             panel.setImeTransitionToggleVisible(true)
 
-            assertEquals(0f, toggle.translationY)
+            assertEquals(1f, toggle.translationY)
             assertEquals(1f, toggle.alpha)
             assertEquals(true, toggle.isClickable)
             assertEquals(
@@ -103,6 +104,156 @@ class ShortcutPanelViewTest {
 
             panel.setImeTransitionToggleVisible(true)
             assertEquals(1f, toggle.alpha)
+        }
+    }
+
+    @Test
+    fun arrowLabelUsesAContentShadowInsteadOfPlatformElevation() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val panel = ShortcutPanelView(context)
+            panel.selection.tap(ShortcutModifier.CONTROL)
+            panel.setImeVisible(visible = true, animate = false)
+
+            val toggle = findToggle(
+                panel,
+                context.getString(R.string.shortcut_panel_collapse),
+            )
+
+            assertEquals(0f, toggle.elevation)
+        }
+    }
+
+    @Test
+    fun shortcutBodyAlwaysDrawsAboveTheArrowLabel() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val panel = ShortcutPanelView(context)
+            panel.selection.tap(ShortcutModifier.CONTROL)
+            panel.setImeVisible(visible = true, animate = false)
+            val toggle = findToggle(
+                panel,
+                context.getString(R.string.shortcut_panel_collapse),
+            )
+            val shift = findToggle(panel, "Shift，未启用")
+
+            assertTrue(
+                panel.indexOfChild(directChildOf(panel, toggle)) <
+                    panel.indexOfChild(directChildOf(panel, shift)),
+            )
+        }
+    }
+
+    @Test
+    fun arrowAndShortcutBodyUseTheSameUpwardShadowStrength() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val density = context.resources.displayMetrics.density
+            val width = (393 * density).toInt()
+            val height = (158 * density).toInt()
+            val expandedPanel = ShortcutPanelView(context)
+            measureAndLayout(expandedPanel, width, height)
+            val bodyTop = height - (110 * density).toInt()
+            val bodyShadowAlpha = renderedPixelAlpha(
+                expandedPanel,
+                width,
+                height,
+                x = width / 2,
+                y = bodyTop - (4 * density).toInt(),
+            )
+
+            val collapsedPanel = ShortcutPanelView(context)
+            collapsedPanel.setImeVisible(visible = true, animate = false)
+            measureAndLayout(collapsedPanel, width, height)
+            val toggleTop = (110 * density).toInt() + 1
+            val toggleShadowAlpha = renderedPixelAlpha(
+                collapsedPanel,
+                width,
+                height,
+                x = (56 * density).toInt(),
+                y = toggleTop - (4 * density).toInt(),
+            )
+
+            assertTrue(bodyShadowAlpha > 0)
+            assertEquals(bodyShadowAlpha, toggleShadowAlpha)
+        }
+    }
+
+    @Test
+    fun arrowShadowExtendsBeyondBothLabelEdges() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val density = context.resources.displayMetrics.density
+            val width = (393 * density).toInt()
+            val height = (158 * density).toInt()
+            val panel = ShortcutPanelView(context)
+            panel.setImeVisible(visible = true, animate = false)
+            measureAndLayout(panel, width, height)
+            val toggleTop = (110 * density).toInt() + 1
+            val sampleY = toggleTop + (16 * density).toInt()
+            val toggleLeft = (24 * density).toInt()
+            val toggleRight = toggleLeft + (64 * density).toInt()
+            val leftShadowAlpha = renderedPixelAlpha(
+                panel,
+                width,
+                height,
+                x = toggleLeft - (2 * density).toInt(),
+                y = sampleY,
+            )
+            val rightShadowAlpha = renderedPixelAlpha(
+                panel,
+                width,
+                height,
+                x = toggleRight + (2 * density).toInt(),
+                y = sampleY,
+            )
+            val toggle = findToggle(
+                panel,
+                context.getString(R.string.shortcut_panel_expand),
+            )
+            val shadow = (toggle as ViewGroup).getChildAt(0)
+            val reservedOutset = (24 * density).toInt()
+
+            assertTrue(leftShadowAlpha > 0)
+            assertTrue(rightShadowAlpha > 0)
+            assertTrue(shadow is ShortcutPanelTopShadowView)
+            assertTrue(shadow.left <= -reservedOutset)
+            assertTrue(shadow.right >= toggle.width + reservedOutset)
+            assertTrue(shadow.top <= -reservedOutset)
+        }
+    }
+
+    @Test
+    fun arrowLabelOverlapsItsAdjacentSurfaceByOnePhysicalPixel() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val expandedPanel = ShortcutPanelView(context)
+            expandedPanel.selection.tap(ShortcutModifier.CONTROL)
+            expandedPanel.setImeVisible(visible = true, animate = false)
+            val expandedToggle = findToggle(
+                expandedPanel,
+                context.getString(R.string.shortcut_panel_collapse),
+            )
+            assertEquals(1f, expandedToggle.translationY)
+
+            val collapsedPanel = ShortcutPanelView(context)
+            collapsedPanel.setImeVisible(visible = true, animate = false)
+            val collapsedToggle = findToggle(
+                collapsedPanel,
+                context.getString(R.string.shortcut_panel_expand),
+            )
+            val bodyHeight = (110 * context.resources.displayMetrics.density).toInt()
+            assertEquals(bodyHeight + 1f, collapsedToggle.translationY)
         }
     }
 
@@ -306,6 +457,32 @@ class ShortcutPanelViewTest {
             }
         }
         error("No armed shortcut pixels were rendered.")
+    }
+
+    private fun findToggle(panel: ShortcutPanelView, description: String): View {
+        val controls = arrayListOf<View>()
+        panel.findViewsWithText(
+            controls,
+            description,
+            View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION,
+        )
+        return controls.single()
+    }
+
+    private fun directChildOf(panel: ShortcutPanelView, descendant: View): View {
+        var child = descendant
+        while (child.parent !== panel) {
+            child = child.parent as View
+        }
+        return child
+    }
+
+    private fun measureAndLayout(panel: ShortcutPanelView, width: Int, height: Int) {
+        panel.measure(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
+        )
+        panel.layout(0, 0, width, height)
     }
 
     private fun arrowIconTop(panel: ShortcutPanelView, width: Int, height: Int): Int {

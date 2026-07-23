@@ -69,10 +69,17 @@ import com.local.virtualkeyboard.ui.LegacyImePanelMotionState
 import com.local.virtualkeyboard.ui.NextFrameImeMotionDispatcher
 import com.local.virtualkeyboard.ui.ScrollStripView
 import com.local.virtualkeyboard.ui.ShortcutPanelView
+import com.local.virtualkeyboard.ui.StableTouchpadLayout
 import com.local.virtualkeyboard.ui.SystemBarStyle
 import com.local.virtualkeyboard.ui.TouchpadView
 import com.local.virtualkeyboard.ui.navigationBarBackdropTranslation
 import com.local.virtualkeyboard.ui.systemBarStyleFor
+
+private data class ImeChromeFrame(
+    val panelMotion: ImePanelMotionUpdate,
+    val animatedOcclusion: Int,
+    val layoutOcclusion: Int,
+)
 
 class MainActivity : Activity(), NetworkClient.Listener {
     private lateinit var settingsStore: SettingsStore
@@ -85,6 +92,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
     private lateinit var inputMethodButton: ImageButton
     private lateinit var languageToggleButton: TextView
     private lateinit var touchpadView: TouchpadView
+    private lateinit var touchpadContainer: StableTouchpadLayout
     private lateinit var scrollStripView: ScrollStripView
     private lateinit var shortcutPanel: ShortcutPanelView
     private val repeatCancellations = mutableListOf<() -> Unit>()
@@ -115,6 +123,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
         inputMethodButton = findViewById(R.id.inputMethodButton)
         languageToggleButton = findViewById(R.id.languageToggleButton)
         touchpadView = findViewById(R.id.touchpad)
+        touchpadContainer = findViewById(R.id.touchpadContainer)
+        touchpadContainer.setImeOcclusion(0)
         scrollStripView = findViewById(R.id.scrollStrip)
         shortcutPanel = findViewById(R.id.shortcutPanel)
         installImeInsetHandling(findViewById(R.id.mainRoot))
@@ -497,6 +507,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 ?: obscuredHeight
             baselineObscuredHeight = baseline
             val remainingImeHeight = (obscuredHeight - baseline).coerceAtLeast(0)
+            touchpadContainer.setImeOcclusion(remainingImeHeight)
             val detectedVisible = if (legacyImeVisible) {
                 remainingImeHeight > 0
             } else {
@@ -561,6 +572,8 @@ class MainActivity : Activity(), NetworkClient.Listener {
         val originalBottom = root.paddingBottom
         val panelMotionState = ImePanelMotionState()
         var activeImeAnimation: WindowInsetsAnimation? = null
+        var targetTouchpadOcclusion = 0
+        var animatedTouchpadOcclusion = 0
 
         fun applyPanelMotion(update: ImePanelMotionUpdate) {
             shortcutPanel.setImeEdgeTranslationY(
@@ -588,9 +601,23 @@ class MainActivity : Activity(), NetworkClient.Listener {
             }
         }
 
-        val nextFrameMotion = NextFrameImeMotionDispatcher(
+        fun applyImeChromeFrame(frame: ImeChromeFrame) {
+            applyPanelMotion(frame.panelMotion)
+            touchpadContainer.setImeOcclusion(
+                animatedOcclusionPx = frame.animatedOcclusion,
+                layoutOcclusionPx = frame.layoutOcclusion,
+            )
+        }
+
+        fun imeChromeFrame(panelMotion: ImePanelMotionUpdate) = ImeChromeFrame(
+            panelMotion = panelMotion,
+            animatedOcclusion = animatedTouchpadOcclusion,
+            layoutOcclusion = targetTouchpadOcclusion,
+        )
+
+        val nextFrameImeChrome = NextFrameImeMotionDispatcher(
             postOnAnimation = { action -> root.postOnAnimation(action) },
-            apply = ::applyPanelMotion,
+            apply = ::applyImeChromeFrame,
         )
 
         root.setWindowInsetsAnimationCallback(
@@ -598,7 +625,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 override fun onPrepare(animation: WindowInsetsAnimation) {
                     if (animation.typeMask and WindowInsets.Type.ime() == 0) return
                     activeImeAnimation = animation
-                    nextFrameMotion.dispatchImmediately(panelMotionState.onAnimationPrepare())
+                    animatedTouchpadOcclusion = touchpadContainer.currentImeOcclusion
+                    nextFrameImeChrome.dispatchImmediately(
+                        imeChromeFrame(panelMotionState.onAnimationPrepare()),
+                    )
                 }
 
                 override fun onProgress(
@@ -608,9 +638,13 @@ class MainActivity : Activity(), NetworkClient.Listener {
                     if (activeImeAnimation != null) {
                         val systemBottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom
                         val imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom
-                        nextFrameMotion.dispatchNextFrame(
-                            panelMotionState.onAnimationProgress(
-                                maxOf(systemBottom, imeBottom),
+                        animatedTouchpadOcclusion =
+                            (imeBottom - systemBottom).coerceAtLeast(0)
+                        nextFrameImeChrome.dispatchNextFrame(
+                            imeChromeFrame(
+                                panelMotionState.onAnimationProgress(
+                                    maxOf(systemBottom, imeBottom),
+                                ),
                             ),
                         )
                     }
@@ -620,7 +654,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 override fun onEnd(animation: WindowInsetsAnimation) {
                     if (animation !== activeImeAnimation) return
                     activeImeAnimation = null
-                    nextFrameMotion.dispatchAfterPendingFrame(panelMotionState.onAnimationEnd())
+                    animatedTouchpadOcclusion = targetTouchpadOcclusion
+                    nextFrameImeChrome.dispatchAfterPendingFrame(
+                        imeChromeFrame(panelMotionState.onAnimationEnd()),
+                    )
                 }
             },
         )
@@ -628,6 +665,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
             val systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars())
             val imeBottom = windowInsets.getInsets(WindowInsets.Type.ime()).bottom
             val imeVisible = windowInsets.isVisible(WindowInsets.Type.ime())
+            targetTouchpadOcclusion = (imeBottom - systemBars.bottom).coerceAtLeast(0)
+            if (activeImeAnimation == null) {
+                animatedTouchpadOcclusion = targetTouchpadOcclusion
+            }
             if (navigationBarBackground.layoutParams.height != systemBars.bottom) {
                 navigationBarBackground.layoutParams = navigationBarBackground.layoutParams.apply {
                     height = systemBars.bottom
@@ -641,7 +682,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
                 visible = imeVisible,
                 layoutBottom = maxOf(systemBars.bottom, imeBottom),
             )
-            nextFrameMotion.dispatchImmediately(panelUpdate)
+            nextFrameImeChrome.dispatchImmediately(imeChromeFrame(panelUpdate))
             view.setPadding(
                 originalLeft + systemBars.left,
                 originalTop + systemBars.top,

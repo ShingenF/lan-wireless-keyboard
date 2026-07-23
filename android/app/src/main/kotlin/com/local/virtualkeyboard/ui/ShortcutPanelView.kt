@@ -40,6 +40,14 @@ class ShortcutPanelView @JvmOverloads constructor(
     private val body = LinearLayout(context)
     private val toggleMotionLayer = FrameLayout(context)
     private val toggle = FrameLayout(context)
+    private val toggleShadow = ShortcutPanelTopShadowView(
+        context = context,
+        cornerRadiusDp = TOGGLE_CORNER_DP,
+        shadowBlurDp = BODY_SHADOW_HEIGHT_DP,
+        horizontalOutsetDp = TOGGLE_SHADOW_OUTSET_DP,
+        topOutsetDp = TOGGLE_SHADOW_OUTSET_DP,
+    )
+    private val toggleSurface = FrameLayout(context)
     private val toggleIcon = ImageView(context)
     private val buttons = linkedMapOf<ShortcutModifier, TextView>()
     private var themeColors = ThemeColors()
@@ -82,7 +90,8 @@ class ShortcutPanelView @JvmOverloads constructor(
         themeColors = colors
         body.background = topRoundedBackground(colors.inputBackgroundArgb, BODY_CORNER_DP)
         bodyShadow.setSurfaceColor(colors.inputBackgroundArgb)
-        toggle.background = topRoundedBackground(colors.inputBackgroundArgb, TOGGLE_CORNER_DP)
+        toggleShadow.setSurfaceColor(colors.inputBackgroundArgb)
+        toggleSurface.background = topRoundedBackground(colors.inputBackgroundArgb, TOGGLE_CORNER_DP)
         toggleIcon.imageTintList = ColorStateList.valueOf(colors.iconArgb)
         renderButtons()
     }
@@ -196,7 +205,8 @@ class ShortcutPanelView @JvmOverloads constructor(
         )
 
         toggle.apply {
-            elevation = dp(8).toFloat()
+            clipChildren = false
+            clipToPadding = false
             visibility = View.VISIBLE
             isFocusable = false
             isClickable = true
@@ -220,9 +230,25 @@ class ShortcutPanelView @JvmOverloads constructor(
         }
         toggleMotionLayer.addView(
             toggle,
-            LayoutParams(dp(64), dp(48), Gravity.TOP or Gravity.START).apply {
-                marginStart = dp(24)
+            LayoutParams(dp(TOGGLE_WIDTH_DP), dp(TOGGLE_HEIGHT_DP), Gravity.TOP or Gravity.START).apply {
+                marginStart = dp(TOGGLE_MARGIN_START_DP)
             },
+        )
+
+        toggle.addView(
+            toggleShadow,
+            LayoutParams(
+                dp(TOGGLE_WIDTH_DP + TOGGLE_SHADOW_OUTSET_DP * 2),
+                dp(TOGGLE_SHADOW_OUTSET_DP + TOGGLE_CORNER_DP),
+                Gravity.TOP or Gravity.START,
+            ).apply {
+                topMargin = -dp(TOGGLE_SHADOW_OUTSET_DP)
+                marginStart = -dp(TOGGLE_SHADOW_OUTSET_DP)
+            },
+        )
+        toggle.addView(
+            toggleSurface,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
         )
 
         toggleIcon.apply {
@@ -231,7 +257,7 @@ class ShortcutPanelView @JvmOverloads constructor(
             setPadding(dp(16), dp(8), dp(16), dp(8))
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        toggle.addView(
+        toggleSurface.addView(
             toggleIcon,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
         )
@@ -372,7 +398,7 @@ class ShortcutPanelView @JvmOverloads constructor(
             .setDuration(PANEL_ANIMATION_MILLIS)
             .start()
         toggle.animate()
-            .translationY(if (expanded) 0f else travel)
+            .translationY(togglePosition(expanded))
             .setDuration(PANEL_ANIMATION_MILLIS)
             .withEndAction {
                 if (animationGeneration == panelAnimationGeneration) {
@@ -396,7 +422,7 @@ class ShortcutPanelView @JvmOverloads constructor(
     private fun commitPanelPosition(expanded: Boolean) {
         val travel = bodyHeight()
         commitBodyPosition(expanded)
-        toggle.translationY = if (expanded) 0f else travel.toFloat()
+        toggle.translationY = togglePosition(expanded)
         toggleIcon.rotation = if (expanded) 180f else 0f
         toggle.isClickable = true
     }
@@ -409,9 +435,8 @@ class ShortcutPanelView @JvmOverloads constructor(
 
     private fun applyImeToggleReveal() {
         val presentationAlpha = if (imeVisible && imeTransitionToggleVisible) 1f else 0f
-        toggle.translationY = if (imeVisible && !panelExpanded) bodyHeight().toFloat() else 0f
+        toggle.translationY = togglePosition(panelExpanded)
         toggle.alpha = presentationAlpha
-        toggle.elevation = dp(8) * presentationAlpha
         toggleIcon.rotation = if (panelExpanded) 180f else 0f
         val fullyInteractive = presentationAlpha >= 0.999f
         toggle.isClickable = fullyInteractive
@@ -443,6 +468,9 @@ class ShortcutPanelView @JvmOverloads constructor(
 
     private fun bodyHeight(): Int = dp(BODY_HEIGHT_DP)
 
+    private fun togglePosition(expanded: Boolean): Float =
+        (if (expanded) 0 else bodyHeight()).toFloat() + SEAM_OVERLAP_PX
+
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private companion object {
@@ -451,10 +479,15 @@ class ShortcutPanelView @JvmOverloads constructor(
         const val BODY_PADDING_DP = 33
         const val BODY_CORNER_DP = 22
         const val TOGGLE_CORNER_DP = 22
+        const val TOGGLE_WIDTH_DP = 64
+        const val TOGGLE_HEIGHT_DP = 48
+        const val TOGGLE_MARGIN_START_DP = 24
+        const val TOGGLE_SHADOW_OUTSET_DP = BODY_SHADOW_HEIGHT_DP * 3
         const val BUTTON_HEIGHT_DP = 44
         const val BUTTON_GAP_DP = 10
         const val BUTTON_WEIGHT_SUM = 317f
         const val ACTIVE_BUTTON_FONT_WEIGHT = 700
+        const val SEAM_OVERLAP_PX = 1f
         const val LONG_PRESS_MILLIS = 1_000L
         const val PANEL_ANIMATION_MILLIS = 180L
     }

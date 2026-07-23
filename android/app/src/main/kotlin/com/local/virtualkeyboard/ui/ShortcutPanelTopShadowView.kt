@@ -6,15 +6,18 @@ import android.graphics.Paint
 import android.view.View
 
 /**
- * Draws only the body panel's upward shadow.
+ * Draws only a panel surface's upward shadow.
  *
- * The view spans the blur above the body and the complete top-corner arc inside it. Its lower edge
- * clips the shadow after the arc, avoiding a shadow/color band below the panel.
+ * The view spans the blur above the surface and the complete top-corner arc inside it. Its lower
+ * edge clips the shadow after the arc, avoiding a shadow/color band below the panel. A narrow
+ * surface can reserve a horizontal outset so its side blur is not clipped by the shadow canvas.
  */
 internal class ShortcutPanelTopShadowView(
     context: Context,
     private val cornerRadiusDp: Int,
     private val shadowBlurDp: Int,
+    private val horizontalOutsetDp: Int = 0,
+    private val topOutsetDp: Int = shadowBlurDp,
 ) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -32,12 +35,13 @@ internal class ShortcutPanelTopShadowView(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val radius = dp(cornerRadiusDp)
-        val sourceTop = dp(shadowBlurDp)
+        val sourceTop = dp(topOutsetDp)
+        val horizontalOutset = dp(horizontalOutsetDp)
         paint.setShadowLayer(dp(shadowBlurDp), 0f, 0f, SHADOW_COLOR)
         canvas.drawRoundRect(
-            0f,
+            horizontalOutset,
             sourceTop,
-            width.toFloat(),
+            width - horizontalOutset,
             sourceTop + radius * 2f,
             radius,
             radius,

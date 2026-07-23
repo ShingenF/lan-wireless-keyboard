@@ -9,26 +9,27 @@ class ImePanelMotionStateTest {
         val state = ImePanelMotionState()
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.HIDE),
+            ImePanelMotionUpdate(toggleTranslationY = 0, visibility = ImePanelVisibilityUpdate.HIDE),
             state.onInsetsApplied(visible = false, layoutBottom = 60),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
+            ImePanelMotionUpdate(toggleTranslationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
             state.onAnimationPrepare(),
         )
 
         val endLayout = state.onInsetsApplied(visible = true, layoutBottom = 720)
-        assertEquals(660, endLayout.translationY)
+        assertEquals(660, endLayout.toggleTranslationY)
+        assertEquals(660, endLayout.bodyTranslationY)
         assertEquals(ImePanelVisibilityUpdate.KEEP, endLayout.visibility)
         assertEquals(ImePanelBodyUpdate.RESTORE_FOR_SHOW, endLayout.body)
 
-        assertEquals(
-            ImePanelMotionUpdate(translationY = 480, visibility = ImePanelVisibilityUpdate.KEEP),
-            state.onAnimationProgress(layoutBottom = 240),
-        )
+        val progress = state.onAnimationProgress(layoutBottom = 240)
+        assertEquals(480, progress.toggleTranslationY)
+        assertEquals(480, progress.bodyTranslationY)
+        assertEquals(ImePanelVisibilityUpdate.KEEP, progress.visibility)
         assertEquals(
             ImePanelMotionUpdate(
-                translationY = 0,
+                toggleTranslationY = 0,
                 visibility = ImePanelVisibilityUpdate.SHOW,
                 toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
             ),
@@ -42,21 +43,22 @@ class ImePanelMotionStateTest {
         state.onInsetsApplied(visible = true, layoutBottom = 720)
 
         val prepare = state.onAnimationPrepare()
-        assertEquals(0, prepare.translationY)
+        assertEquals(0, prepare.toggleTranslationY)
         assertEquals(ImePanelVisibilityUpdate.KEEP, prepare.visibility)
 
         val endLayout = state.onInsetsApplied(visible = false, layoutBottom = 60)
-        assertEquals(-660, endLayout.translationY)
+        assertEquals(-660, endLayout.toggleTranslationY)
+        assertEquals(0, endLayout.bodyTranslationY)
         assertEquals(ImePanelVisibilityUpdate.KEEP, endLayout.visibility)
         assertEquals(ImePanelBodyUpdate.PREPARE_FOR_HIDE, endLayout.body)
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(toggleTranslationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
             state.onAnimationProgress(layoutBottom = 300),
         )
         assertEquals(
             ImePanelMotionUpdate(
-                translationY = 0,
+                toggleTranslationY = 0,
                 visibility = ImePanelVisibilityUpdate.KEEP,
                 toggleVisibility = ImeToggleVisibilityUpdate.HIDE,
             ),
@@ -64,7 +66,7 @@ class ImePanelMotionStateTest {
         )
         assertEquals(
             ImePanelMotionUpdate(
-                translationY = 0,
+                toggleTranslationY = 0,
                 visibility = ImePanelVisibilityUpdate.HIDE,
                 toggleVisibility = ImeToggleVisibilityUpdate.HIDE,
             ),
@@ -77,11 +79,11 @@ class ImePanelMotionStateTest {
         val state = ImePanelMotionState()
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
+            ImePanelMotionUpdate(toggleTranslationY = 0, visibility = ImePanelVisibilityUpdate.SHOW),
             state.onInsetsApplied(visible = true, layoutBottom = 600),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 0, visibility = ImePanelVisibilityUpdate.HIDE),
+            ImePanelMotionUpdate(toggleTranslationY = 0, visibility = ImePanelVisibilityUpdate.HIDE),
             state.onInsetsApplied(visible = false, layoutBottom = 60),
         )
     }
@@ -95,12 +97,13 @@ class ImePanelMotionStateTest {
         state.onAnimationProgress(layoutBottom = 300)
 
         assertEquals(
-            ImePanelMotionUpdate(translationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(toggleTranslationY = -100, visibility = ImePanelVisibilityUpdate.KEEP),
             state.onAnimationPrepare(),
         )
         assertEquals(
             ImePanelMotionUpdate(
-                translationY = 560,
+                toggleTranslationY = 560,
+                bodyTranslationY = 660,
                 visibility = ImePanelVisibilityUpdate.KEEP,
                 toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
                 body = ImePanelBodyUpdate.RESTORE_FOR_SHOW,
@@ -108,16 +111,56 @@ class ImePanelMotionStateTest {
             state.onInsetsApplied(visible = true, layoutBottom = 720),
         )
         assertEquals(
-            ImePanelMotionUpdate(translationY = 280, visibility = ImePanelVisibilityUpdate.KEEP),
+            ImePanelMotionUpdate(
+                toggleTranslationY = 280,
+                bodyTranslationY = 330,
+                visibility = ImePanelVisibilityUpdate.KEEP,
+            ),
             state.onAnimationProgress(layoutBottom = 510),
         )
         assertEquals(
             ImePanelMotionUpdate(
-                translationY = 0,
+                toggleTranslationY = 0,
                 visibility = ImePanelVisibilityUpdate.SHOW,
                 toggleVisibility = ImeToggleVisibilityUpdate.SHOW,
             ),
             state.onAnimationEnd(),
         )
+    }
+
+    @Test
+    fun `reversing an opening animation keeps both layers at their current screen position`() {
+        val state = ImePanelMotionState()
+        state.onInsetsApplied(visible = false, layoutBottom = 60)
+        state.onAnimationPrepare()
+        state.onInsetsApplied(visible = true, layoutBottom = 720)
+        val openingProgress = state.onAnimationProgress(layoutBottom = 240)
+
+        assertEquals(480, openingProgress.toggleTranslationY)
+        assertEquals(480, openingProgress.bodyTranslationY)
+        assertEquals(
+            ImePanelMotionUpdate(
+                toggleTranslationY = 480,
+                bodyTranslationY = 480,
+                visibility = ImePanelVisibilityUpdate.SHOW,
+            ),
+            state.onAnimationPrepare(),
+        )
+
+        val reverseLayout = state.onInsetsApplied(visible = false, layoutBottom = 60)
+        assertEquals(-180, reverseLayout.toggleTranslationY)
+        assertEquals(-180, reverseLayout.bodyTranslationY)
+        assertEquals(
+            openingProgress.toggleTranslationY - (720 - 60),
+            reverseLayout.toggleTranslationY,
+        )
+        assertEquals(
+            openingProgress.bodyTranslationY - (720 - 60),
+            reverseLayout.bodyTranslationY,
+        )
+
+        val reverseProgress = state.onAnimationProgress(layoutBottom = 150)
+        assertEquals(-60, reverseProgress.toggleTranslationY)
+        assertEquals(-90, reverseProgress.bodyTranslationY)
     }
 }

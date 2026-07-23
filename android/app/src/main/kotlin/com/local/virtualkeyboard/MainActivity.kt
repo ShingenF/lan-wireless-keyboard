@@ -562,7 +562,10 @@ class MainActivity : Activity(), NetworkClient.Listener {
         var activeImeAnimation: WindowInsetsAnimation? = null
 
         fun applyPanelMotion(update: ImePanelMotionUpdate) {
-            shortcutPanel.setImeEdgeTranslationY(update.translationY.toFloat())
+            shortcutPanel.setImeEdgeTranslationY(
+                toggleTranslationY = update.toggleTranslationY.toFloat(),
+                bodyTranslationY = update.bodyTranslationY.toFloat(),
+            )
             when (update.visibility) {
                 ImePanelVisibilityUpdate.KEEP -> Unit
                 ImePanelVisibilityUpdate.SHOW -> shortcutPanel.setImeVisible(true, animate = false)
@@ -1304,7 +1307,13 @@ class MainActivity : Activity(), NetworkClient.Listener {
             hapticProfile = settings.scrollHapticProfile,
         )
         scrollStripView.visibility = if (settings.scrollStripEnabled) View.VISIBLE else View.GONE
-        val themeColors = settings.themeSettings.resolve(isSystemDarkTheme())
+        val systemDarkTheme = isSystemDarkTheme()
+        val themeColors = settings.themeSettings.resolve(systemDarkTheme)
+        val isDarkSemanticTheme = when (settings.themeSettings.mode) {
+            ThemeMode.FOLLOW_SYSTEM -> systemDarkTheme
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
         currentThemeColors = themeColors
         languageToggleShortcut = settings.languageToggleShortcut
         inputMethodShortcut = settings.inputMethodShortcut
@@ -1314,7 +1323,7 @@ class MainActivity : Activity(), NetworkClient.Listener {
         findViewById<View>(R.id.inputContainer).backgroundTintList =
             ColorStateList.valueOf(themeColors.inputBackgroundArgb)
         touchpadView.backgroundTintList = ColorStateList.valueOf(themeColors.touchpadBackgroundArgb)
-        shortcutPanel.applyTheme(themeColors)
+        shortcutPanel.applyTheme(themeColors, isDarkSemanticTheme)
         statusView.setTextColor(themeColors.primaryTextArgb)
         inputView.setTextColor(themeColors.primaryTextArgb)
         inputView.setHintTextColor(themeColors.secondaryTextArgb)

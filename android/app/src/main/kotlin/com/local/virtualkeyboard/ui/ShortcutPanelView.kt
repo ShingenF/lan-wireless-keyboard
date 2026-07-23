@@ -2,9 +2,9 @@ package com.local.virtualkeyboard.ui
 
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
@@ -31,12 +31,19 @@ class ShortcutPanelView @JvmOverloads constructor(
     val selection = ShortcutSelection()
 
     private val bodyClipLayer = FrameLayout(context)
+    private val bodyMotionLayer = FrameLayout(context)
+    private val bodyShadow = ShortcutPanelTopShadowView(
+        context = context,
+        cornerRadiusDp = BODY_CORNER_DP,
+        shadowBlurDp = BODY_SHADOW_HEIGHT_DP,
+    )
     private val body = LinearLayout(context)
     private val toggleMotionLayer = FrameLayout(context)
     private val toggle = FrameLayout(context)
     private val toggleIcon = ImageView(context)
     private val buttons = linkedMapOf<ShortcutModifier, TextView>()
     private var themeColors = ThemeColors()
+    private var isDarkSemanticTheme = false
     private var imeVisible = false
     private var panelExpanded = true
     private var selectionChangedListener: () -> Unit = {}
@@ -44,9 +51,9 @@ class ShortcutPanelView @JvmOverloads constructor(
     init {
         clipChildren = false
         clipToPadding = false
-        buildBody()
         buildToggle()
-        applyTheme(themeColors)
+        buildBody()
+        applyTheme(themeColors, isDarkSemanticTheme = false)
     }
 
     fun setOnSelectionChangedListener(listener: () -> Unit) {
@@ -68,22 +75,25 @@ class ShortcutPanelView @JvmOverloads constructor(
         notifySelectionChanged()
     }
 
-    fun applyTheme(colors: ThemeColors) {
+    fun applyTheme(colors: ThemeColors, isDarkSemanticTheme: Boolean) {
         themeColors = colors
+        this.isDarkSemanticTheme = isDarkSemanticTheme
         body.background = topRoundedBackground(colors.inputBackgroundArgb, BODY_CORNER_DP)
+        bodyShadow.setSurfaceColor(colors.inputBackgroundArgb)
         toggle.background = topRoundedBackground(colors.inputBackgroundArgb, TOGGLE_CORNER_DP)
         toggleIcon.imageTintList = ColorStateList.valueOf(colors.iconArgb)
         renderButtons()
     }
 
-    fun setImeEdgeTranslationY(translationY: Float) {
-        toggleMotionLayer.translationY = translationY
+    fun setImeEdgeTranslationY(toggleTranslationY: Float, bodyTranslationY: Float) {
+        toggleMotionLayer.translationY = toggleTranslationY
+        bodyClipLayer.translationY = bodyTranslationY
     }
 
     fun prepareForImeHide(bodyOffsetY: Float = 0f) {
         settlePanelAnimation()
-        body.translationY = bodyOffsetY
-        body.visibility = View.VISIBLE
+        bodyMotionLayer.translationY = bodyOffsetY
+        bodyMotionLayer.visibility = View.VISIBLE
     }
 
     fun restoreForImeShow() {
@@ -118,6 +128,17 @@ class ShortcutPanelView @JvmOverloads constructor(
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
         )
 
+        bodyClipLayer.addView(
+            bodyMotionLayer,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+        )
+        bodyMotionLayer.addView(
+            bodyShadow,
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(BODY_SHADOW_HEIGHT_DP), Gravity.BOTTOM).apply {
+                bottomMargin = dp(BODY_HEIGHT_DP)
+            },
+        )
+
         body.apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
@@ -127,7 +148,7 @@ class ShortcutPanelView @JvmOverloads constructor(
                 dp(BODY_PADDING_DP),
             )
         }
-        bodyClipLayer.addView(
+        bodyMotionLayer.addView(
             body,
             LayoutParams(LayoutParams.MATCH_PARENT, dp(BODY_HEIGHT_DP), Gravity.BOTTOM),
         )
@@ -208,7 +229,6 @@ class ShortcutPanelView @JvmOverloads constructor(
             includeFontPadding = false
             setText(labelResource)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setTypeface(typeface, Typeface.BOLD)
             isClickable = true
             isFocusable = false
             minWidth = 0
@@ -281,16 +301,10 @@ class ShortcutPanelView @JvmOverloads constructor(
     private fun renderButtons() {
         buttons.forEach { (modifier, button) ->
             val state = selection.stateOf(modifier)
-            val fill = when (state) {
-                ShortcutModifierState.OFF -> themeColors.inputBackgroundArgb
-                ShortcutModifierState.ARMED -> themeColors.accentArgb
-                ShortcutModifierState.LATCHED -> themeColors.primaryTextArgb
-            }
-            val stroke = if (state == ShortcutModifierState.OFF) themeColors.iconArgb else null
-            button.background = roundedBackground(fill, stroke)
-            button.setTextColor(
-                if (state == ShortcutModifierState.OFF) themeColors.primaryTextArgb else contrastColor(fill),
-            )
+            val style = shortcutButtonStyle(state, themeColors, isDarkSemanticTheme)
+            button.background = roundedBackground(style.fill, style.stroke)
+            button.setTextColor(style.textColor)
+            applyFontWeight(button, style.fontWeight)
             button.isSelected = state != ShortcutModifierState.OFF
             button.contentDescription = buildString {
                 append(button.text)
@@ -305,6 +319,16 @@ class ShortcutPanelView @JvmOverloads constructor(
         }
     }
 
+    private fun applyFontWeight(button: TextView, weight: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            button.typeface = Typeface.create(Typeface.DEFAULT, weight, false)
+            button.paint.isFakeBoldText = false
+        } else {
+            button.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            button.paint.isFakeBoldText = weight > DEFAULT_BUTTON_FONT_WEIGHT
+        }
+    }
+
     private fun updatePanelPosition(expanded: Boolean, animate: Boolean) {
         cancelPanelAnimations()
         val rotation = if (expanded) 180f else 0f
@@ -316,11 +340,10 @@ class ShortcutPanelView @JvmOverloads constructor(
             return
         }
 
-        if (expanded) updatePanelLayering(expanded = true)
         val travel = bodyHeight().toFloat()
-        body.visibility = View.VISIBLE
+        bodyMotionLayer.visibility = View.VISIBLE
         toggle.isClickable = false
-        body.animate()
+        bodyMotionLayer.animate()
             .translationY(if (expanded) 0f else travel)
             .setDuration(PANEL_ANIMATION_MILLIS)
             .start()
@@ -341,15 +364,15 @@ class ShortcutPanelView @JvmOverloads constructor(
     }
 
     private fun cancelPanelAnimations() {
-        body.animate().cancel()
+        bodyMotionLayer.animate().cancel()
         toggle.animate().cancel()
         toggleIcon.animate().cancel()
     }
 
     private fun commitPanelPosition(expanded: Boolean) {
         val travel = bodyHeight()
-        body.translationY = if (expanded) 0f else travel.toFloat()
-        body.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
+        bodyMotionLayer.translationY = if (expanded) 0f else travel.toFloat()
+        bodyMotionLayer.visibility = if (expanded) View.VISIBLE else View.INVISIBLE
         (toggle.layoutParams as LayoutParams).also { params ->
             params.topMargin = if (expanded) 0 else travel
             toggle.layoutParams = params
@@ -357,17 +380,6 @@ class ShortcutPanelView @JvmOverloads constructor(
         toggle.translationY = 0f
         toggleIcon.rotation = if (expanded) 180f else 0f
         toggle.isClickable = true
-        updatePanelLayering(expanded)
-    }
-
-    private fun updatePanelLayering(expanded: Boolean) {
-        if (expanded) {
-            body.elevation = if (imeVisible) dp(BODY_ELEVATION_DP).toFloat() else 0f
-            bodyClipLayer.bringToFront()
-        } else {
-            body.elevation = 0f
-            toggleMotionLayer.bringToFront()
-        }
     }
 
     private fun roundedBackground(fill: Int, stroke: Int?): GradientDrawable =
@@ -386,22 +398,20 @@ class ShortcutPanelView @JvmOverloads constructor(
             cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
         }
 
-    private fun contrastColor(background: Int): Int =
-        if (Color.luminance(background) > 0.179f) Color.BLACK else Color.WHITE
-
     private fun bodyHeight(): Int = dp(BODY_HEIGHT_DP)
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private companion object {
         const val BODY_HEIGHT_DP = 110
+        const val BODY_SHADOW_HEIGHT_DP = 8
         const val BODY_PADDING_DP = 33
-        const val BODY_ELEVATION_DP = 4
         const val BODY_CORNER_DP = 22
         const val TOGGLE_CORNER_DP = 22
         const val BUTTON_HEIGHT_DP = 44
         const val BUTTON_GAP_DP = 10
         const val BUTTON_WEIGHT_SUM = 317f
+        const val DEFAULT_BUTTON_FONT_WEIGHT = 700
         const val LONG_PRESS_MILLIS = 1_000L
         const val PANEL_ANIMATION_MILLIS = 180L
     }

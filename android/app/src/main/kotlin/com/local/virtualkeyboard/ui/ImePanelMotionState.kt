@@ -4,7 +4,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal data class ImePanelMotionUpdate(
-    val translationY: Int,
+    val toggleTranslationY: Int,
+    val bodyTranslationY: Int = 0,
     val visibility: ImePanelVisibilityUpdate,
     val toggleVisibility: ImeToggleVisibilityUpdate = ImeToggleVisibilityUpdate.KEEP,
     val body: ImePanelBodyUpdate = ImePanelBodyUpdate.KEEP,
@@ -41,16 +42,23 @@ internal class ImePanelMotionState {
     private var targetImeVisible = false
     private var targetLayoutBottom = 0
     private var animationStartLayoutBottom = 0
-    private var animationInitialTranslationY = 0
-    private var lastTranslationY = 0
+    private var animationInitialToggleTranslationY = 0
+    private var animationInitialBodyTranslationY = 0
+    private var lastToggleTranslationY = 0
+    private var lastBodyTranslationY = 0
 
     fun onAnimationPrepare(): ImePanelMotionUpdate {
+        val reversingRunningAnimation = animationRunning
         animationRunning = true
-        targetImeVisible = settledImeVisible
+        if (!reversingRunningAnimation) {
+            targetImeVisible = settledImeVisible
+        }
         animationStartLayoutBottom = currentLayoutBottom
-        animationInitialTranslationY = lastTranslationY
+        animationInitialToggleTranslationY = lastToggleTranslationY
+        animationInitialBodyTranslationY = lastBodyTranslationY
         return ImePanelMotionUpdate(
-            translationY = lastTranslationY,
+            toggleTranslationY = lastToggleTranslationY,
+            bodyTranslationY = lastBodyTranslationY,
             visibility = if (settledImeVisible) {
                 ImePanelVisibilityUpdate.KEEP
             } else {
@@ -61,14 +69,24 @@ internal class ImePanelMotionState {
 
     fun onInsetsApplied(visible: Boolean, layoutBottom: Int): ImePanelMotionUpdate {
         val previousTargetLayoutBottom = targetLayoutBottom
+        val reversingToSettledState =
+            animationRunning && visible != targetImeVisible && visible == settledImeVisible
         targetImeVisible = visible
         targetLayoutBottom = layoutBottom
         if (animationRunning) {
-            lastTranslationY += targetLayoutBottom - previousTargetLayoutBottom
+            val layoutDelta = targetLayoutBottom - previousTargetLayoutBottom
+            lastToggleTranslationY += layoutDelta
+            lastBodyTranslationY = if (visible || reversingToSettledState) {
+                lastBodyTranslationY + layoutDelta
+            } else {
+                0
+            }
             animationStartLayoutBottom = currentLayoutBottom
-            animationInitialTranslationY = lastTranslationY
+            animationInitialToggleTranslationY = lastToggleTranslationY
+            animationInitialBodyTranslationY = lastBodyTranslationY
             return motionOnlyUpdate(
-                translationY = lastTranslationY,
+                toggleTranslationY = lastToggleTranslationY,
+                bodyTranslationY = lastBodyTranslationY,
                 toggleVisibility = if (visible) {
                     ImeToggleVisibilityUpdate.SHOW
                 } else {
@@ -85,10 +103,12 @@ internal class ImePanelMotionState {
         settledImeVisible = visible
         currentLayoutBottom = layoutBottom
         animationStartLayoutBottom = layoutBottom
-        animationInitialTranslationY = 0
-        lastTranslationY = 0
+        animationInitialToggleTranslationY = 0
+        animationInitialBodyTranslationY = 0
+        lastToggleTranslationY = 0
+        lastBodyTranslationY = 0
         return ImePanelMotionUpdate(
-            translationY = 0,
+            toggleTranslationY = 0,
             visibility = visibilityFor(visible),
         )
     }
@@ -107,9 +127,13 @@ internal class ImePanelMotionState {
         } else {
             (completed / CLOSE_COMPLETION_FRACTION).coerceAtMost(1f)
         }
-        lastTranslationY = (animationInitialTranslationY * (1f - panelProgress)).roundToInt()
+        lastToggleTranslationY =
+            (animationInitialToggleTranslationY * (1f - panelProgress)).roundToInt()
+        lastBodyTranslationY =
+            (animationInitialBodyTranslationY * (1f - completed)).roundToInt()
         return motionOnlyUpdate(
-            translationY = lastTranslationY,
+            toggleTranslationY = lastToggleTranslationY,
+            bodyTranslationY = lastBodyTranslationY,
             toggleVisibility = if (!targetImeVisible && panelProgress >= 1f) {
                 ImeToggleVisibilityUpdate.HIDE
             } else {
@@ -123,10 +147,12 @@ internal class ImePanelMotionState {
         settledImeVisible = targetImeVisible
         currentLayoutBottom = targetLayoutBottom
         animationStartLayoutBottom = targetLayoutBottom
-        animationInitialTranslationY = 0
-        lastTranslationY = 0
+        animationInitialToggleTranslationY = 0
+        animationInitialBodyTranslationY = 0
+        lastToggleTranslationY = 0
+        lastBodyTranslationY = 0
         return ImePanelMotionUpdate(
-            translationY = 0,
+            toggleTranslationY = 0,
             visibility = visibilityFor(settledImeVisible),
             toggleVisibility = if (settledImeVisible) {
                 ImeToggleVisibilityUpdate.SHOW
@@ -137,11 +163,13 @@ internal class ImePanelMotionState {
     }
 
     private fun motionOnlyUpdate(
-        translationY: Int,
+        toggleTranslationY: Int,
+        bodyTranslationY: Int = 0,
         toggleVisibility: ImeToggleVisibilityUpdate = ImeToggleVisibilityUpdate.KEEP,
         body: ImePanelBodyUpdate = ImePanelBodyUpdate.KEEP,
     ) = ImePanelMotionUpdate(
-        translationY = translationY,
+        toggleTranslationY = toggleTranslationY,
+        bodyTranslationY = bodyTranslationY,
         visibility = ImePanelVisibilityUpdate.KEEP,
         toggleVisibility = toggleVisibility,
         body = body,
